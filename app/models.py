@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, false
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -85,6 +85,10 @@ class SearchResult(Base):
     candidate_id: Mapped[str] = mapped_column(ForeignKey("candidates.x_id"))
     score: Mapped[int] = mapped_column(Integer)
     reasons: Mapped[list] = mapped_column(JSON)
+    ai_fit: Mapped[str | None] = mapped_column(String(12))
+    ai_role: Mapped[str | None] = mapped_column(String(20))
+    ai_reason: Mapped[str | None] = mapped_column(Text)
+    ai_quotes: Mapped[list | None] = mapped_column(JSON)
 
 
 class Evidence(Base):
@@ -134,6 +138,10 @@ class Outreach(Base):
     last_sync: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sync_complete: Mapped[bool] = mapped_column(Boolean, default=False)
     sync_error: Mapped[str | None] = mapped_column(String(80))
+    skipped: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    queued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    queue_key: Mapped[str | None] = mapped_column(String(80))
+    queue_note: Mapped[str | None] = mapped_column(String(80))
 
 
 class Attempt(Base):
@@ -186,6 +194,21 @@ class Audit(Base):
     subject: Mapped[str] = mapped_column(String(80))
     details: Mapped[dict] = mapped_column(JSON, default=dict)
     created: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class AICall(Base):
+    """One row per model request: what it was for, what it cost in tokens, how it ended."""
+    __tablename__ = "ai_calls"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True, default=uid)
+    kind: Mapped[str] = mapped_column(String(40))
+    provider: Mapped[str] = mapped_column(String(20))
+    model: Mapped[str] = mapped_column(String(80))
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0)
+    outcome: Mapped[str] = mapped_column(String(20))
+    error: Mapped[str | None] = mapped_column(String(80))
+    created: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
 
 
 class FixtureMessage(Base):
