@@ -15,6 +15,7 @@ from app.models import Account, Attempt, Candidate, Consent, DMEvent, Evidence, 
 from app.routes import actions, oauth
 from app.security import session_for
 from app.services.outreach import eligibility
+from app.services.queue import Worker
 from app.services.runtime import Runtime
 from app.services.synchronization import recover_stale, reply_state
 
@@ -37,13 +38,19 @@ def create_app(settings=None, factory=None):
                 if db.get(Account, "fixture_sender") is None:
                     db.add(Account(x_id="fixture_sender", handle="prototype_operator"))
         recover_stale(runtime)
+        if settings.worker_enabled:
+            app.state.worker = Worker(runtime)
+            app.state.worker.start()
         yield
+        if app.state.worker:
+            app.state.worker.stop()
         if engine:
             engine.dispose()
 
     app = FastAPI(title="GenAI outreach workbench", lifespan=lifespan,
                   docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings, app.state.factory, app.state.runtime = settings, factory, runtime
+    app.state.worker = None
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
     app.include_router(actions.router)
     app.include_router(oauth.router)

@@ -104,6 +104,7 @@ def save_draft(rt, oid, expected, text, test_message=False, source_ids=None, met
             raise DomainError("CONSENT_REQUIRED", "Register test consent before composing a test message.")
         o.draft, o.test_message = text.strip(), test_message
         o.skipped = False
+        o.queued_at, o.queue_key = None, None
         o.version += 1
         o.approved_hash, o.approved_at, o.approval_snapshot = None, None, None
         if source_ids is not None:
