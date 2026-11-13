@@ -1,0 +1,47 @@
+{% extends "base.html" %}{% block title %}Review {{ person.name }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/discover">Back to discovery</a>
+<div class="page-heading"><div><div class="person-top"><span class="avatar large">{{ person.name[:1] }}</span><div><h1>{{ person.name }}</h1><p class="muted">@{{ person.handle }}{% if person.manual %} <span class="badge amber">Manually added test recipient</span>{% endif %}</p></div></div>
+<p class="lede">{{ person.bio }}</p></div>{% if score %}<span class="coverage">Evidence score<strong>{{ score.score }} / 10</strong></span>{% endif %}</div>
+<div class="review-layout">
+<section class="evidence-column" aria-labelledby="evidence-title"><div class="column-heading"><h2 id="evidence-title">The evidence</h2><form action="/candidates/{{ person.x_id }}/refresh" method="post">{{ csrf() }}<button class="text-button">Refresh sources</button></form></div>
+{% if score %}<div class="score-breakdown">{% for reason in score.reasons %}<div><span>{{ reason.label }}</span><strong>+{{ reason.points }}</strong><small>{{ reason.detail }}</small></div>{% endfor %}</div>{% endif %}
+{% for item in evidence %}<article class="evidence-item"><div class="small muted">Public post <span>{{ item.published.strftime('%d %b %Y') }}</span></div>
+{% if item.available %}<blockquote>{{ item.text }}</blockquote>{% else %}<p class="alert">This evidence is no longer available. Approval has been invalidated.</p>{% endif %}
+{% if item.url %}<a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">Inspect original post</a>{% else %}<span class="small muted">Synthetic source {{ item.id }}</span>{% endif %}
+<p class="small muted">Checked {{ item.retrieved.strftime('%H:%M UTC') }}</p></article>
+{% else %}<div class="empty compact"><p>No professional evidence selected.</p><p class="small">A consenting test recipient can receive a clearly labeled, manually written test message. Do not invent professional details.</p></div>{% endfor %}
+{% if person.location %}<p class="small">Public profile location: {{ person.location }}. Unverified.</p>{% endif %}
+</section>
+<section class="compose-column" aria-labelledby="compose-title"><div class="column-heading"><h2 id="compose-title">Your message</h2><span class="badge blue">{{ outreach.send_status | replace('_', ' ') if outreach else 'Not started' }}</span></div>
+{% if not outreach %}<div class="panel"><p>Prepare a draft to review against the evidence. This does not send anything.</p>
+<form action="/outreach" method="post">{{ csrf() }}<input type="hidden" name="recipient" value="{{ person.x_id }}"><button>Prepare message</button></form></div>
+{% else %}
+<div class="recipient-strip"><span>From <strong>@{{ account.handle if account else outreach.sender_id }}</strong></span><span>To <strong>@{{ person.handle }}</strong></span></div>
+{% if outreach.send_status in ['not_sent', 'rejected'] %}
+<form action="/outreach/{{ outreach.id }}/draft" method="post">{{ csrf() }}{{ version(outreach) }}<button class="secondary">Draft from evidence</button></form>
+<form action="/outreach/{{ outreach.id }}/edit" method="post" class="draft-form">{{ csrf() }}{{ version(outreach) }}
+<label for="text">Exact message text <span class="muted">Version {{ outreach.version }}</span></label>
+<textarea id="text" name="text" rows="9" maxlength="800" required data-draft-input>{{ outreach.draft }}</textarea>
+{% if consent %}<label class="checkbox"><input type="checkbox" name="test_message" {% if outreach.test_message %}checked{% endif %}> This is a manually written message about the agreed prototype test.</label>{% endif %}
+<div class="button-row"><button class="secondary">Save draft</button><small class="muted" data-char-count>{{ outreach.draft | length }} / 800</small></div></form>
+{% if outreach.draft_meta %}<p class="small muted">Drafting: {{ outreach.draft_meta.provider }}.{% if outreach.draft_meta.fallback %} {{ outreach.draft_meta.fallback }}{% endif %}</p>{% endif %}
+<div class="approval-box"><h3>Review the exact version</h3><p class="small">Check every personal claim against the sources. Editing or regenerating requires a new approval.</p>
+<form action="/outreach/{{ outreach.id }}/approve" method="post" data-approval-action>{{ csrf() }}{{ version(outreach) }}<button class="secondary" {% if not outreach.draft %}disabled{% endif %}>Approve version {{ outreach.version }}</button></form>
+{% if outreach.approved_hash %}<p class="approval-state">Approved {{ outreach.approved_at.strftime('%H:%M UTC') }}</p>{% endif %}</div>
+{% else %}<div class="sent-document"><p class="small muted">Immutable submitted text</p><p class="message-text">{{ outreach.draft }}</p><p class="small">Status: <strong>{{ outreach.send_status | replace('_', ' ') }}</strong>. {{ reply_state }}.</p></div>{% endif %}
+{% if reasons %}<div class="blocked-reasons"><h3>Sending is blocked</h3><ul>{% for reason in reasons %}<li>{{ reason | replace('_',' ') | lower }}</li>{% endfor %}</ul><p class="small"><a href="/settings">Review connection, consent and operating limits</a></p></div>{% endif %}
+{% if outreach.send_status in ['not_sent','rejected'] %}<form action="/outreach/{{ outreach.id }}/send" method="post" data-approval-action>{{ csrf() }}{{ version(outreach) }}<input type="hidden" name="request_key" value="{{ request_key }}"><button class="send-button" {% if reasons %}disabled{% endif %}>{{ 'Simulate approved send' if settings.app_mode == 'fixture' else 'Send approved message' }}</button></form>{% endif %}
+{% if outreach.send_status == 'unknown' %}<div class="alert">X may have accepted this message. Do not resend. Reconcile against conversation history.</div><form action="/outreach/{{ outreach.id }}/reconcile" method="post">{{ csrf() }}<button>Check uncertain outcome</button></form><form action="/outreach/{{ outreach.id }}/freeze" method="post">{{ csrf() }}<button class="danger-text">Freeze this contact</button></form>{% if settings.app_mode == 'live' %}<a href="https://x.com/messages" target="_blank" rel="noopener noreferrer">Inspect messages in X</a>{% endif %}{% endif %}
+<div class="button-row secondary-actions"><form action="/outreach/{{ outreach.id }}/sync" method="post">{{ csrf() }}<button class="secondary">Sync replies</button></form><form action="/outreach/{{ outreach.id }}/acknowledge" method="post">{{ csrf() }}<button class="text-button">Mark replies handled</button></form></div>
+<p class="small muted">Last complete sync: {{ outreach.last_sync.strftime('%d %b, %H:%M UTC') if outreach.last_sync else 'Not synced' }}{% if outreach.sync_error %}. Incomplete: {{ outreach.sync_error }}{% endif %}</p>
+{% endif %}
+<div class="consent-note"><h3>Contact permission</h3>{% if consent and not consent.revoked %}<p>Test consent recorded until {{ consent.expires.strftime('%d %b %Y') }}.</p><p class="small">{{ consent.reference }}</p>{% else %}<p>Consent has not been recorded for this sender. Relevance alone does not permit sending.</p>{% endif %}
+<form action="/candidates/{{ person.x_id }}/suppress" method="post">{{ csrf() }}<button class="danger-text">Do not contact this person</button></form></div>
+</section></div>
+{% if outreach %}<section class="panel conversation"><div class="column-heading"><h2>Conversation</h2><span class="badge {{ 'amber' if reply_state == 'Needs attention' else 'blue' }}">{{ reply_state }}</span></div>
+{% for event in events %}<div class="conversation-event {{ 'outgoing' if event.sender_id == outreach.sender_id else 'incoming' }}"><strong>{{ 'You' if event.sender_id == outreach.sender_id else person.name }}</strong><p>{{ event.text }}</p><small>{{ event.created.strftime('%d %b %Y, %H:%M:%S UTC') }}</small></div>{% else %}<p class="muted">Sync to retrieve events for this tracked conversation. No read receipts are inferred.</p>{% endfor %}
+{% if settings.app_mode == 'fixture' and outreach.send_status == 'sent' %}<form action="/fixture/reply/{{ outreach.id }}" method="post" class="fixture-controls">{{ csrf() }}<label for="fixture-reply">Synthetic recipient reply</label><input id="fixture-reply" name="text" value="Thanks for the test message. I can confirm receipt." maxlength="800"><button class="secondary">Add fixture reply</button><small>Then select Sync replies. Fixture-only control; never available in live mode.</small></form>{% endif %}
+{% if attempts %}<details><summary>Send attempt history</summary>{% for a in attempts %}<p class="small">{{ a.started.strftime('%H:%M:%S UTC') }}: {{ a.status }}{% if a.error %}, {{ a.error }}{% endif %}</p>{% endfor %}</details>{% endif %}
+</section>{% endif %}
+{% endblock %}

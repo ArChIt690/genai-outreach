@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block title %}Discover people{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="section-label">A conversation starts with a reason</p><h1>Find people worth knowing.</h1>
+<p class="lede">Look for relevant work, then inspect the evidence before writing.</p></div><span class="coverage">Recent public posts<br><strong>Seven-day sample</strong></span></div>
+<section class="panel search-panel" aria-labelledby="segment-title"><h2 id="segment-title">Define your segment</h2>
+<form action="/searches" method="post" class="search-form">{{ csrf() }}
+<div><label for="topics">Topics</label><input id="topics" name="topics" value="robotics, embodied AI" required maxlength="200"><small>Comma-separated words or phrases</small></div>
+<div><label for="roles">Role signals <span class="muted">(optional)</span></label><input id="roles" name="roles" placeholder="researcher, founder" maxlength="200"></div>
+<div><label for="location">Location term <span class="muted">(optional)</span></label><input id="location" name="location" placeholder="Singapore" maxlength="100"></div>
+<button type="submit" {% if not account %}disabled{% endif %}>Find relevant people</button>
+</form><p class="small muted">Up to 50 posts and 20 people per search. Location is a search term, not a verified residence. <a href="/settings">Connection settings</a></p>
+</section>
+{% if run %}
+<div class="results-heading"><div><h2>People and their work</h2><p class="small muted">{{ results | length }} people from {{ run.count }} posts. Retrieved {{ run.created.strftime('%d %b %Y, %H:%M UTC') }}.</p></div>
+<span class="badge {{ 'amber' if run.capped else 'blue' }}">{{ 'Capped sample' if run.capped else 'Search sample complete' }}</span></div>
+<details class="query"><summary>Inspect the query</summary><code>{{ run.query }}</code><p class="small">Ranking applies only to this retrieved sample.</p></details>
+{% if results %}<div class="people-grid">{% for result, person in results %}
+<article class="person-card"><div class="person-top"><span class="avatar">{{ person.name[:1] }}</span><div><h3><a href="/candidates/{{ person.x_id }}">{{ person.name }}</a></h3><span class="muted">@{{ person.handle }}</span></div>
+<span class="fit-score">{{ result.score }}<small>/10</small></span></div>
+<p class="bio">{{ person.bio }}</p><ul class="reason-list">{% for reason in result.reasons if reason.points %}<li>{{ reason.label }} <span>+{{ reason.points }}</span></li>{% endfor %}</ul>
+<div class="person-bottom"><span class="badge {{ 'green' if result.score >= 7 else 'amber' }}">{{ 'Stronger evidence' if result.score >= 7 else 'Needs review' }}</span><a href="/candidates/{{ person.x_id }}">Review evidence</a></div>
+</article>{% endfor %}</div>{% else %}<div class="empty"><h3>No matching public evidence in this sample.</h3><p>Try broader topic terms or leave optional filters blank. No messages were sent.</p></div>{% endif %}
+{% else %}<div class="empty"><div class="evidence-symbol" aria-hidden="true">≋</div><h2>Start with a small, useful search.</h2><p>Your results will include the public evidence behind each match.<br>Discovery never grants permission to send.</p></div>{% endif %}
+{% endblock %}

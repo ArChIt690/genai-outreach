@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% block title %}Settings{% endblock %}{% block content %}
+<div class="page-heading"><div><p class="section-label">A small, accountable workspace</p><h1>Make the boundaries explicit.</h1><p class="lede">Connect your account, register test consent and review operating limits.</p></div></div>
+<div class="settings-grid"><section class="panel"><h2>Sender connection</h2>
+{% if account %}<div class="connection"><span class="status-dot"></span><strong>@{{ account.handle }}</strong><span class="badge green">{{ 'Synthetic' if settings.app_mode == 'fixture' else 'Authorized' }}</span></div>
+<p class="small muted">{{ 'Fixture provider. No real X account is connected.' if settings.app_mode == 'fixture' else 'OAuth permission is granted. Specific API operations still require live verification.' }}</p>
+{% else %}<p>No account connected.</p>{% endif %}
+{% if settings.app_mode == 'live' %}<a class="button secondary" href="/oauth/x/start">Connect with X</a>{% endif %}
+<p class="small">The app can inspect public posts, read tracked private conversations and send only the exact messages you approve to allowed test recipients. <a href="/privacy">Review data handling</a>.</p>
+{% if account %}<form action="/settings/disconnect" method="post">{{ csrf() }}<button class="danger-text">Disconnect and remove tokens</button></form>{% endif %}
+</section>
+<section class="panel"><h2>Operating limits</h2><dl class="settings-list"><div><dt>Sending</dt><dd>{{ 'Enabled for eligible tests' if settings.send_enabled else 'Disabled in deployment configuration' }}</dd></div>
+<div><dt>Daily dispatch attempts</dt><dd>{{ settings.daily_send_limit }}</dd></div>
+<div><dt>Search cap</dt><dd>50 posts / 20 people</dd></div>
+<div><dt>X usage estimate</dt><dd>&#36;{{ '%.3f' | format(workspace.spend_micros / 1000000) }} / &#36;{{ settings.x_budget_usd }}</dd></div>
+<div><dt>Drafting</dt><dd>{{ settings.draft_provider }}</dd></div>
+<div><dt>Model allowance reserved</dt><dd>&#36;{{ '%.2f' | format(workspace.model_spend_micros / 1000000) }} / &#36;{{ settings.model_budget_usd }}</dd></div></dl>
+<p class="small muted">These are local estimates and limits, not a provider invoice. Fixture usage is synthetic.</p>
+<form action="/settings/pause" method="post">{{ csrf() }}<button class="secondary">{{ 'Resume new sends' if workspace.paused else 'Pause new sends' }}</button></form></section>
+<section class="panel"><h2>Who is writing, and why?</h2><form action="/settings/save" method="post">{{ csrf() }}
+<label for="sender-name">Sender name or organization</label><input id="sender-name" name="sender_name" value="{{ workspace.sender_name }}" maxlength="100" required>
+<label for="purpose">Honest purpose of contact</label><textarea id="purpose" name="purpose" rows="3" maxlength="300" required>{{ workspace.purpose }}</textarea>
+<label class="checkbox"><input type="checkbox" name="history_acknowledged" {% if workspace.history_acknowledged or settings.history_limit_acknowledged %}checked{% endif %}> I understand that X history is limited to 30 days and cannot prove there was no older contact.</label>
+<p class="small muted">Changing sender facts or purpose invalidates approvals and requires renewed test consent.</p><button>Save sender details</button></form></section>
+<section class="panel"><h2>Register a test recipient</h2><p class="small">Only deployment-allowlisted accounts are accepted. Discovery never adds anyone to that list.</p>
+{% if settings.app_mode == 'fixture' %}<p class="small">For the synthetic walkthrough, use <strong>test_recipient</strong>.</p>{% endif %}
+<form action="/test-recipients" method="post">{{ csrf() }}<label for="handle">X handle</label><input id="handle" name="handle" placeholder="{{ 'test_recipient' if settings.app_mode == 'fixture' else 'consenting_handle' }}" required maxlength="16">
+<label for="reference">Consent reference</label><input id="reference" name="reference" placeholder="On-X consent link or controlled-account test record" required maxlength="500">
+<label class="checkbox"><input type="checkbox" name="controlled"> I control this recipient account and authorize a single prototype test message.</label><button>Record test consent</button></form></section></div>
+{% if consents %}<section class="panel"><h2>Recorded test permissions</h2><div class="table-wrap"><table><thead><tr><th>Recipient ID</th><th>Consent expires</th><th>Status</th><th>Action</th></tr></thead><tbody>{% for c in consents %}<tr><td>{{ c.recipient_id }}</td><td>{{ c.expires.strftime('%d %b %Y, %H:%M UTC') }}</td><td>{{ 'Revoked' if c.revoked else 'Recorded; checked at send' }}</td><td><form action="/test-recipients/{{ c.id }}/revoke" method="post">{{ csrf() }}<button class="danger-text">Revoke consent</button></form></td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
+<section class="panel"><h2>Local content</h2><p>Clear retrieved evidence and imported reply bodies while preserving identities, consent and the contact ledger. Already submitted message bodies remain in the send ledger for reconciliation. Full removal requests require the documented maintenance procedure.</p>
+<form action="/settings/purge" method="post">{{ csrf() }}<button class="danger-text">Purge local evidence and imported replies</button></form></section>
+{% endblock %}

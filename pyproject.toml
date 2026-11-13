@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "genai-outreach"
+version = "0.1.0"
+description = "Evidence-led, consent-gated X outreach assessment prototype"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi", "uvicorn", "jinja2", "sqlalchemy>=2", "alembic",
+  "psycopg[binary]", "httpx", "pydantic-settings", "python-multipart",
+  "cryptography", "argon2-cffi",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-playwright", "ruff"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["postgres: requires a real PostgreSQL database", "browser: requires a browser"]
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

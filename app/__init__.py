@@ -1,0 +1,1 @@
+"""GenAI Fund assessment prototype."""
