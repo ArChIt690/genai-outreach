@@ -146,14 +146,18 @@ def eligibility(db, settings, w, a, o, require_approval=True):
         reasons.append("RATE_LIMITED")
     if o.send_status not in {"not_sent", "rejected"}:
         reasons.append("SEND_UNKNOWN" if o.send_status == "unknown" else "ALREADY_CONTACTED")
+    # Test messages always need the allowlist and recorded consent. Evidence-based messages
+    # to discovered people skip both only when the deployment chose operator_approved.
+    gated = o.test_message or settings.outreach_policy != "operator_approved"
     allowed = settings.allowed_ids if settings.app_mode == "live" else {"fixture_test"}
-    if o.recipient_id not in allowed:
+    if (gated and o.recipient_id not in allowed) or o.recipient_id == o.sender_id:
         reasons.append("RECIPIENT_NOT_ALLOWED")
     if db.get(Suppression, o.recipient_id):
         reasons.append("DO_NOT_CONTACT")
     consent = db.scalar(select(Consent).where(Consent.sender_id == o.sender_id,
                                                Consent.recipient_id == o.recipient_id))
-    if not consent or consent.revoked or consent.expires <= now() or consent.purpose_version != w.purpose_version:
+    if gated and (not consent or consent.revoked or consent.expires <= now()
+                  or consent.purpose_version != w.purpose_version):
         reasons.append("CONSENT_REQUIRED")
     candidate = db.get(Candidate, o.recipient_id)
     if candidate is None or not candidate.available:
