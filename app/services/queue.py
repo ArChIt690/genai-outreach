@@ -8,15 +8,16 @@ import logging
 import secrets
 import threading
 import time
+from datetime import timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from app.errors import DomainError, ProviderError
 from app.models import Account, Attempt, Audit, Candidate, Outreach, SearchResult, SearchRun, Workspace, now
 from app.services.fit import fit_rank
 from app.services.outreach import approve, eligibility, locked_rows
 from app.services.sending import send
-from app.services.synchronization import recover_stale
+from app.services.synchronization import recover_stale, sync
 
 log = logging.getLogger("outreach.worker")
 
@@ -29,6 +30,8 @@ ROTATE_CODES = {"HISTORY_INCOMPLETE", "X_UNAVAILABLE"}
 # Holds that cost a network call to discover: the worker waits longer before trying again.
 BACKOFF_CODES = {"HISTORY_INCOMPLETE", "X_UNAVAILABLE", "TOKEN_REFRESH_BUSY", "BUDGET_EXCEEDED"}
 BACKOFF_SECONDS = 300
+# Replies are checked automatically for this long after a send; "Sync all now" has no such limit.
+SYNC_WINDOW_DAYS = 14
 
 
 def _refuse_blocked(reasons):
@@ -192,6 +195,41 @@ def tick(rt) -> str:
         return "blocked:" + code
 
 
+def _sync_one(rt, oid) -> bool:
+    try:
+        sync(rt, oid)
+        return True
+    except (DomainError, ProviderError):
+        # Remember the attempt so a failing conversation is not re-read on every worker step.
+        with rt.factory.begin() as db:
+            db.get(Outreach, oid).last_sync = now()
+        return False
+
+
+def sync_due(rt) -> int:
+    """Check replies for sent messages whose last check is older than AUTO_SYNC_MINUTES."""
+    minutes = rt.settings.auto_sync_minutes
+    if minutes <= 0:
+        return 0
+    with rt.factory() as db:
+        due = list(db.scalars(select(Outreach.id).where(
+            Outreach.send_status == "sent", Outreach.sent_at >= now() - timedelta(days=SYNC_WINDOW_DAYS),
+            or_(Outreach.last_sync.is_(None), Outreach.last_sync < now() - timedelta(minutes=minutes)),
+        ).order_by(Outreach.sent_at)))
+    for oid in due:
+        _sync_one(rt, oid)
+    return len(due)
+
+
+def sync_all(rt) -> tuple[int, int]:
+    """Check replies for every sent message now. Returns (succeeded, failed)."""
+    with rt.factory() as db:
+        sent = list(db.scalars(select(Outreach.id).where(Outreach.send_status == "sent")
+                               .order_by(Outreach.sent_at)))
+    succeeded = sum(1 for oid in sent if _sync_one(rt, oid))
+    return succeeded, len(sent) - succeeded
+
+
 class Worker:
     """Background thread that works the queue. Logs error codes only, never message or error text."""
     def __init__(self, rt):
@@ -216,11 +254,16 @@ class Worker:
     def run_once(self) -> str:
         try:
             recover_stale(self.rt)
-            return tick(self.rt)
+            result = tick(self.rt)
         except Exception as exc:
             code = getattr(exc, "code", None) or type(exc).__name__
             log.warning("worker step failed: %s", code)
             return "error:" + code
+        try:
+            sync_due(self.rt)
+        except Exception as exc:
+            log.warning("reply check failed: %s", getattr(exc, "code", None) or type(exc).__name__)
+        return result
 
     def _loop(self):
         while not self._stop.wait(self.rt.settings.queue_tick_seconds):
