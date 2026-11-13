@@ -1,25 +1,32 @@
 import secrets
 from datetime import timedelta
 from threading import Lock
+from urllib.parse import quote_plus
 
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from starlette.concurrency import run_in_threadpool
 
 from app.db import workspace_lock
 from app.errors import DomainError
-from app.models import Account, Audit, Candidate, Consent, Evidence, FixtureMessage, OperatorSession, Outreach, now
+from app.integrations.llm import ai_ready
+from app.models import (Account, Audit, Candidate, Consent, Evidence, FixtureMessage, OperatorSession, Outreach,
+                        SearchResult, now)
 from app.security import csrf_check, new_session, session_for, verify_password
 from app.services.discovery import discover, invalidate_source, revalidate
-from app.services.drafting import generate
+from app.services.drafting import draft_batch, generate
+from app.services.fit import judge
 from app.services.outreach import approve, create_outreach, locked_rows, registration, save_draft, suppress
+from app.services.queue import enqueue, skip, sync_all, unqueue
 from app.services.sending import send
 from app.services.synchronization import acknowledge, reconcile, sync
 
 router = APIRouter()
 login_attempts = {}
 login_lock = Lock()
+# The only places a form may ask to return to. Anything else is ignored.
+RETURN_TO = {"review": "/review", "activity": "/activity"}
 
 
 def handle(request, form):
@@ -52,6 +59,7 @@ def handle(request, form):
     operator = session_for(request)
     csrf_check(request, operator, form.get("csrf"))
     destination = "/settings"
+    back = RETURN_TO.get(form.get("next", ""))
     if path == "/logout":
         with rt.factory.begin() as db:
             db.delete(db.get(OperatorSession, operator.token_hash))
@@ -116,6 +124,22 @@ def handle(request, form):
     elif path == "/searches":
         run = discover(rt, form.get("topics", ""), form.get("roles", ""), form.get("location", ""))
         destination = f"/discover?run={run}"
+        if ai_ready(rt.settings) and not judge(rt, run):
+            with rt.factory() as db:
+                found = db.scalar(select(func.count()).select_from(SearchResult).where(SearchResult.run_id == run))
+            if found:
+                destination += "&notice=" + quote_plus(
+                    "AI fit judging was unavailable. Showing keyword ranking only.")
+    elif path.startswith("/searches/") and path.endswith("/draft"):
+        counts = draft_batch(rt, request.path_params["id"], operator.token_hash)
+        destination = "/review?notice=" + quote_plus(
+            f"{counts['drafted']} drafted, {counts['skipped']} skipped. Nothing is sent until you approve.")
+    elif path == "/activity/sync":
+        checked, failed = sync_all(rt)
+        text = f"{checked} conversation{'' if checked == 1 else 's'} checked"
+        if failed:
+            text += f", {failed} could not be checked"
+        destination = "/activity?notice=" + quote_plus(text + ".")
     elif path == "/outreach":
         create_outreach(rt, form.get("recipient", ""))
         destination = "/candidates/" + form.get("recipient", "")
@@ -134,6 +158,18 @@ def handle(request, form):
             save_draft(rt, oid, expected, form.get("text", ""), form.get("test_message") == "on")
         elif action == "approve":
             approve(rt, oid, expected)
+        elif action == "queue":
+            # Approve exactly what was on screen: an edited text is saved first, then approved.
+            text = form.get("text")
+            if text is not None and text.strip() != row.draft:
+                expected = save_draft(rt, oid, expected, text, form.get("test_message") == "on")
+            enqueue(rt, oid, expected)
+            if back:
+                back += "?notice=" + quote_plus("Approved and queued. It will send at the configured pace.")
+        elif action == "unqueue":
+            unqueue(rt, oid)
+        elif action == "skip":
+            skip(rt, oid)
         elif action == "send":
             outcome = send(rt, oid, expected, form.get("request_key", ""))
             destination += f"?notice=Send+status:+{outcome}"
@@ -147,10 +183,12 @@ def handle(request, form):
             suppress(rt, row.recipient_id, "Operator froze this conversation; uncertain send remains unresolved")
         else:
             raise DomainError("NOT_FOUND", "Unknown action.", 404)
+        if back and action in {"edit", "queue", "unqueue", "skip"}:
+            destination = back
     elif path.startswith("/candidates/") and path.endswith("/suppress"):
         recipient = request.path_params["id"]
         suppress(rt, recipient)
-        destination = "/candidates/" + recipient
+        destination = back or "/candidates/" + recipient
     elif path.startswith("/candidates/") and path.endswith("/refresh"):
         recipient = request.path_params["id"]
         with rt.factory() as db:
@@ -184,7 +222,8 @@ async def post_action(request: Request):
 
 for route in [
     "/login", "/logout", "/settings/save", "/settings/pause", "/settings/disconnect", "/settings/purge",
-    "/test-recipients", "/test-recipients/{id}/revoke", "/searches", "/outreach",
+    "/test-recipients", "/test-recipients/{id}/revoke", "/searches", "/searches/{id}/draft", "/outreach",
+    "/outreach/{id}/queue", "/outreach/{id}/unqueue", "/outreach/{id}/skip", "/activity/sync",
     "/outreach/{id}/draft", "/outreach/{id}/edit", "/outreach/{id}/approve", "/outreach/{id}/send",
     "/outreach/{id}/sync", "/outreach/{id}/reconcile", "/outreach/{id}/acknowledge", "/outreach/{id}/freeze",
     "/candidates/{id}/suppress", "/candidates/{id}/refresh", "/fixture/reply/{id}",

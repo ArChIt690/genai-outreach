@@ -6,16 +6,19 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 
 from app.config import Settings
 from app.db import initialize_workspace, make_database
 from app.errors import DomainError, ProviderError
-from app.models import Account, Attempt, Candidate, Consent, DMEvent, Evidence, Outreach, SearchResult, SearchRun, Workspace
+from app.integrations.llm import ai_ready, model_name, provider_label
+from app.models import (Account, AICall, Attempt, Candidate, Consent, DMEvent, Evidence, Outreach, SearchResult,
+                        SearchRun, Workspace)
 from app.routes import actions, oauth
 from app.security import session_for
 from app.services.outreach import eligibility
-from app.services.queue import Worker
+from app.services.fit import fit_rank
+from app.services.queue import HOLD_CODES, Worker, hold_reason, queued_items, review_items
 from app.services.runtime import Runtime
 from app.services.synchronization import recover_stale, reply_state
 
@@ -75,8 +78,13 @@ def create_app(settings=None, factory=None):
         with factory() as db:
             w = db.get(Workspace, "main")
             account = db.scalar(select(Account).where(Account.connected.is_(True)))
+            pending = db.scalar(select(func.count()).select_from(Outreach).where(
+                Outreach.send_status == "not_sent", Outreach.draft != "", Outreach.queued_at.is_(None),
+                Outreach.skipped.is_(False)))
             return templates.TemplateResponse(request=request, name=name, context={
                 "operator": operator, "settings": settings, "workspace": w, "account": account,
+                "pending_review": pending, "ai_on": ai_ready(settings), "ai_provider": provider_label(settings),
+                "ai_model": model_name(settings),
                 "notice": request.query_params.get("notice", "")[:180], **context,
             })
 
@@ -126,7 +134,15 @@ def create_app(settings=None, factory=None):
         session_for(request)
         with factory() as db:
             consents = db.scalars(select(Consent)).all()
-        return render(request, "settings.html", consents=consents)
+            calls = db.scalars(select(AICall).order_by(AICall.created.desc()).limit(20)).all()
+            total, tokens, average = db.execute(select(
+                func.count(), func.coalesce(func.sum(func.coalesce(AICall.input_tokens, 0)
+                                                     + func.coalesce(AICall.output_tokens, 0)), 0),
+                func.coalesce(func.avg(AICall.latency_ms), 0))).one()
+            by_outcome = dict(db.execute(select(AICall.outcome, func.count()).group_by(AICall.outcome)).all())
+        usage = {"calls": total, "tokens": int(tokens), "average_ms": round(average),
+                 "failures": by_outcome.get("failed", 0), "fallbacks": by_outcome.get("fallback_model", 0)}
+        return render(request, "settings.html", consents=consents, calls=calls, usage=usage)
 
     @app.get("/discover")
     def discovery_page(request: Request):
@@ -137,8 +153,32 @@ def create_app(settings=None, factory=None):
                 select(SearchRun).order_by(SearchRun.created.desc()).limit(1))
             results = db.execute(select(SearchResult, Candidate).join(
                 Candidate, Candidate.x_id == SearchResult.candidate_id).where(
-                SearchResult.run_id == run.id).order_by(SearchResult.score.desc())) .all() if run else []
-        return render(request, "discover.html", run=run, results=results)
+                SearchResult.run_id == run.id)).all() if run else []
+            results = sorted(results, key=lambda r: (fit_rank(r[0].ai_fit), -r[0].score, r[1].handle))
+        return render(request, "discover.html", run=run, results=results,
+                      judged=any(r.ai_fit for r, _ in results))
+
+    @app.get("/review")
+    def review_page(request: Request):
+        session_for(request)
+        with factory() as db:
+            w = db.get(Workspace, "main")
+            cards = []
+            for o, person, result in review_items(db):
+                sender = db.get(Account, o.sender_id)
+                evidence = [e for e in (db.get(Evidence, eid) for eid in o.selected_sources) if e]
+                dates = {e.id: e.published for e in evidence}
+                cards.append({
+                    "outreach": o, "person": person, "result": result, "evidence": evidence,
+                    "quotes": [{"text": q["quote"], "published": dates.get(q["source_id"])}
+                               for q in (result.ai_quotes or [])] if result else [],
+                    # Only reasons about this person disable the button; holds just make the queue wait.
+                    "blocked": [r for r in eligibility(db, settings, w, sender, o, require_approval=False)
+                                if r not in HOLD_CODES],
+                })
+            queued = queued_items(db)
+            hold = hold_reason(db, settings) if queued else None
+        return render(request, "review.html", cards=cards, queued=queued, hold=hold)
 
     @app.get("/candidates/{recipient}")
     def candidate_page(request: Request, recipient: str):
@@ -174,14 +214,17 @@ def create_app(settings=None, factory=None):
         recover_stale(runtime)
         with factory() as db:
             rows = []
+            queued = [o.id for o, _ in queued_items(db)]
+            hold = hold_reason(db, settings) if queued else None
             for o, p in db.execute(select(Outreach, Candidate).join(
                     Candidate, Candidate.x_id == Outreach.recipient_id).order_by(Outreach.id)):
                 state = reply_state(db, o)
                 if request.query_params.get("attention") and state != "Needs attention" and \
-                        o.send_status not in {"unknown", "rejected"} and not o.sync_error:
+                        o.send_status not in {"unknown", "rejected"} and not o.sync_error and \
+                        not (o.queue_note and not o.queued_at):
                     continue
-                rows.append((o, p, state))
-        return render(request, "activity.html", rows=rows)
+                rows.append((o, p, state, queued.index(o.id) + 1 if o.id in queued else 0))
+        return render(request, "activity.html", rows=rows, queue_total=len(queued), hold=hold)
 
     @app.get("/privacy")
     def privacy_page(request: Request):

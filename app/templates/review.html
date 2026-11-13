@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% block title %}Review drafts{% endblock %}{% block content %}
+<div class="page-heading"><div><p class="section-label">Nothing goes out without you</p><h1>Review each message.</h1>
+<p class="lede">Check every draft against the person's own posts. Approve it, edit it, or skip it.</p></div>
+<span class="coverage">Waiting for you<strong>{{ cards | length }} draft{{ '' if cards | length == 1 else 's' }}</strong></span></div>
+{% if settings.outreach_policy == 'test_allowlist' %}<div class="alert">Send rule: test list only. You can draft and review anyone, but only registered test recipients can be queued. A deployment that has decided to message approved people sets <code>OUTREACH_POLICY=operator_approved</code>.</div>{% endif %}
+{% for card in cards %}{% set o = card.outreach %}{% set person = card.person %}{% set result = card.result %}
+<article class="review-card" aria-labelledby="card-{{ loop.index }}">
+<div class="person-top"><span class="avatar">{{ person.name[:1] }}</span><div><h2 id="card-{{ loop.index }}"><a href="/candidates/{{ person.x_id }}">{{ person.name }}</a></h2><span class="muted">@{{ person.handle }}</span></div>
+{% if result and result.ai_fit %}<span class="badge fit {{ 'green' if result.ai_fit == 'strong' else 'blue' if result.ai_fit == 'possible' else 'amber' }}">Fit: {{ result.ai_fit }} · {{ result.ai_role | replace('_', ' ') }}</span>
+{% elif result %}<span class="badge fit blue">Keyword score {{ result.score }} / 10</span>
+{% else %}<span class="badge fit amber">{{ 'Test message' if o.test_message else 'No search evidence' }}</span>{% endif %}</div>
+{% if result and result.ai_reason %}<p class="why"><strong>Why:</strong> {{ result.ai_reason }}</p>{% endif %}
+{% if card.quotes %}<ul class="quote-list">{% for quote in card.quotes %}<li>“{{ quote.text }}” <span class="muted">post{% if quote.published %}, {{ quote.published.strftime('%d %b') }}{% endif %}</span></li>{% endfor %}</ul>{% endif %}
+{% if card.evidence %}<details class="sources" {% if not card.quotes %}open{% endif %}><summary>Source posts ({{ card.evidence | length }})</summary>
+{% for item in card.evidence %}<blockquote>{{ item.text if item.available else 'This post is no longer available.' }}</blockquote><p class="small muted">{{ item.published.strftime('%d %b %Y') }}{% if item.url %} · <a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">Open on X</a>{% endif %}</p>{% endfor %}</details>{% endif %}
+{% if o.queue_note %}<p class="alert">Removed from the send queue: {{ o.queue_note | replace('_', ' ') | lower }}.</p>{% endif %}
+{% if card.blocked %}<div class="blocked-reasons"><strong>This person cannot be queued:</strong> {% for reason in card.blocked %}{{ reason | replace('_', ' ') | lower }}{{ '' if loop.last else ', ' }}{% endfor %}.</div>{% endif %}
+<form action="/outreach/{{ o.id }}/edit" method="post" class="review-form">{{ csrf() }}{{ version(o) }}<input type="hidden" name="next" value="review">{% if o.test_message %}<input type="hidden" name="test_message" value="on">{% endif %}
+<label for="text-{{ o.id }}">Exact message text <span class="muted">Version {{ o.version }}</span></label>
+<textarea id="text-{{ o.id }}" name="text" rows="5" maxlength="800" required>{{ o.draft }}</textarea>
+<div class="button-row"><button type="submit" formaction="/outreach/{{ o.id }}/queue" {% if card.blocked %}disabled{% endif %}>Approve and queue</button>
+<button type="submit" class="secondary">Save edit</button>
+<button type="submit" class="text-button" formaction="/outreach/{{ o.id }}/skip" formnovalidate>Skip</button>
+<button type="submit" class="danger-text" formaction="/candidates/{{ person.x_id }}/suppress" formnovalidate>Do not contact</button>
+<small class="muted draft-origin">{% if o.draft_meta.provider in ['gemini', 'anthropic'] %}AI draft · {{ o.draft_meta.provider }}{% elif o.draft_meta.provider == 'manual' %}Edited by you{% else %}Drafting: {{ o.draft_meta.provider }}{% endif %}{% if o.draft_meta.fallback %}. {{ o.draft_meta.fallback }}{% endif %}</small></div>
+<p class="small muted">Approving covers exactly the text shown here, including any edit you just made.</p></form>
+</article>
+{% else %}<div class="empty"><h2>Nothing is waiting for review.</h2><p>Run a search and choose “Draft for top matches”, or prepare a single message from a person's page.</p><a class="button secondary" href="/discover">Discover people</a></div>{% endfor %}
+{% if queued %}<section class="panel queue-panel" aria-labelledby="queue-title"><div class="column-heading"><h2 id="queue-title">Waiting to send</h2><span class="badge {{ 'amber' if hold else 'green' }}">{{ ('Holding: ' + hold | replace('_', ' ') | lower) if hold else 'Sending at pace' }}</span></div>
+<p class="small muted">Approved messages go out one at a time, at least {{ settings.send_min_gap_seconds }} seconds apart and at most {{ settings.daily_send_limit }} per day.</p>
+<ol class="queue-list">{% for item, person in queued %}<li><span><strong>{{ person.name }}</strong> <span class="muted">@{{ person.handle }}</span>{% if item.queue_note %} <span class="badge amber">{{ item.queue_note | replace('_', ' ') | lower }}</span>{% endif %}</span>
+<form action="/outreach/{{ item.id }}/unqueue" method="post">{{ csrf() }}<input type="hidden" name="next" value="review"><button class="text-button">Remove from queue</button></form></li>{% endfor %}</ol></section>{% endif %}
+{% endblock %}
