@@ -1,15 +1,17 @@
 # GenAI Fund outreach prototype
 
-A Python workbench for finding relevant public AI/robotics work on X, reviewing the evidence, composing an exact message, recording human approval, and tracking a consented test conversation.
+A Python workbench for outreach on X to people building in AI and robotics. It finds people from recent public posts, has an AI model judge fit and draft a personal message from their own posts, puts every draft in a review queue for a person to approve, sends approved messages at a safe pace, and tracks replies.
 
-The fixture workflow is implemented and tested. Live X account access and real sending have not been verified in this workspace because credentials were not supplied. This is an assessment prototype, not a finished campaign platform.
+AI does the reading and writing. A person approves every message. Nothing is sent without that approval.
+
+Verified: the whole flow on synthetic X data (fixture mode), including real Google Gemini calls for fit judging and drafting. Not verified: anything against the real X API, because no X developer credentials were available. This is an assessment prototype, not a finished campaign platform.
 
 ## Requirements
 
 - Python 3.12 or compatible supported Python.
 - PostgreSQL 17, or Docker Desktop/Engine with Compose.
 - For live mode: an approved X developer app, OAuth client ID/secret, API credits and DM permissions, and a controlled/explicitly consenting recipient.
-- No LLM credential is required for evidence-template drafts.
+- Optional: a Google Gemini API key for AI fit judging and drafting. Without one the app ranks by keywords and writes a template draft.
 
 ## Start with Docker
 
@@ -42,7 +44,23 @@ Keep the terminal's working directory at the project root. The commands assume t
 
 ## Fixture walkthrough
 
-Fixture mode uses only synthetic profiles, source posts and conversations; it makes no X/model calls.
+Fixture mode uses only synthetic profiles, source posts and conversations. It makes no X calls. If DRAFT_PROVIDER=gemini is set, the synthetic posts are sent to Gemini for judging and drafting.
+
+### Assisted flow: search, review, queue
+
+Set these in .env and restart (GEMINI lines are optional):
+
+    OUTREACH_POLICY=operator_approved
+    DRAFT_PROVIDER=gemini
+    GEMINI_API_KEY=your-key
+
+1. Sign in and search for robotics, embodied AI. Each person shows a fit (strong, possible or weak), a reason, and the quotes behind it.
+2. Select Draft for top matches. The app drafts a message for every strong or possible match, up to 10, and opens Review.
+3. On each Review card, read the reason, the quotes and the source posts. Edit the text if needed. Then choose Approve and queue, Skip, or Do not contact. Approving covers exactly the text on screen.
+4. Approved messages wait in the send queue. The app sends them one at a time, SEND_MIN_GAP_SECONDS apart, up to DAILY_SEND_LIMIT per day. Activity shows each message's place in the queue and the reason for any hold.
+5. Open a sent person's page, add a fixture reply, then select Sync all now in Activity. The conversation moves to Needs attention.
+
+### Manual test-recipient flow
 
 1. Sign in. Search for robotics and embodied AI.
 2. Open a candidate, prepare a message and draft from evidence. Inspect source text and approve the current version. Sending stays blocked without contact permission.
@@ -54,6 +72,50 @@ Fixture mode uses only synthetic profiles, source posts and conversations; it ma
 8. A second initial send is blocked. Do not clear real history to repeat a live demonstration.
 
 Fixture content and live data must use separate databases. The app refuses to start when APP_MODE disagrees with the database's stored mode.
+
+## Who can be messaged
+
+One setting, OUTREACH_POLICY, decides this. Settings and the top bar show which value is active.
+
+| Value | Who can be messaged |
+| --- | --- |
+| test_allowlist (default) | Only accounts listed in TEST_RECIPIENT_IDS that have recorded test consent. Use this to test the tool. |
+| operator_approved | Any discovered person, once a person has approved the exact text. The allowlist and consent checks are skipped for evidence-based messages. |
+
+Under both values the app still enforces: human approval of the exact text, the do-not-contact list, one initial message per person, the pause switch, SEND_ENABLED, the daily limit, the X budget, and a fresh re-read of the quoted posts. A reply of STOP adds the person to the do-not-contact list.
+
+Switch to operator_approved on real X only for outreach your organisation has decided to run from its own account. To test this tool, keep test_allowlist and message accounts you control or people who agreed to the test.
+
+## AI fit judging and drafting
+
+Set DRAFT_PROVIDER=gemini and GEMINI_API_KEY in .env. Defaults: GEMINI_MODEL=gemini-2.5-flash, GEMINI_FALLBACK_MODEL=gemini-flash-lite-latest.
+
+- After each search, one model call judges the top 10 keyword matches. For each person it returns a fit, a role, a short reason and the quotes the reason rests on.
+- The app checks every quote word for word against that person's stored posts. If any quote is not found, that person's AI judgment is thrown away and the keyword score stands alone. There is no confidence percentage.
+- A draft must be at most 500 characters, cite quotes that pass the same check, and contain a STOP opt-out line. Otherwise the app uses the template draft and labels it as a fallback.
+- If the first model is busy or rate limited, the call is tried once on the fallback model. If that fails too, the app falls back to keyword ranking or the template and says so on screen.
+- Only public profile text, public posts, the sender name and the purpose are sent to the model. DMs and tokens never are. Posts are passed as data and the instructions tell the model to treat them as untrusted.
+- Settings has an AI usage section: every call with its model, tokens, time and result. AI_DAILY_CALL_LIMIT (default 200) caps calls per UTC day.
+
+Google's free tier may use submitted content to improve its products. What this app submits is public posts plus your sender name and purpose. Use a paid key if that matters to you.
+
+## Settings for assisted outreach
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| OUTREACH_POLICY | test_allowlist | Who can be messaged. See above. |
+| DRAFT_PROVIDER | template | template, gemini or anthropic. |
+| GEMINI_API_KEY | empty | Needed for gemini. Keep it in .env only. |
+| GEMINI_MODEL / GEMINI_FALLBACK_MODEL | gemini-2.5-flash / gemini-flash-lite-latest | First model and the one tried when the first is busy. |
+| AI_DAILY_CALL_LIMIT | 200 | Model calls per UTC day. |
+| DRAFT_LIMIT_PER_SESSION | 40 | Drafts per sign-in. |
+| DAILY_SEND_LIMIT | 10 | Send attempts per UTC day. This is our caution, not an X quota. |
+| SEND_MIN_GAP_SECONDS | 120 | Minimum gap between queued sends. |
+| QUEUE_TICK_SECONDS | 30 | How often the background worker wakes. |
+| AUTO_SYNC_MINUTES | 180 | Minutes between automatic reply checks, for 14 days after a send. 0 turns it off. See docs/COSTS.md before lowering it. |
+| WORKER_ENABLED | true | Set false to stop automatic sending and reply checks. |
+
+Run exactly one app process. The send queue and reply checks run inside it and stop when it stops; they continue from the database when it starts again.
 
 ## Connect a real X account
 
@@ -76,7 +138,7 @@ To perform a single live test, record explicit test consent for the allowlisted 
 
 An incoming consent message before the initial send does not count as a reply. Available history is checked for outgoing prior contact, but the API's thirty-day window cannot prove absence of older messages. Use a previously uncontacted controlled test pair. Ordinary conversation continuation happens in X, not through automated follow-ups here.
 
-## Optional model drafting
+## Template and Anthropic drafting
 
 The default DRAFT_PROVIDER=template attributes a selected public post directly and incorporates your supplied purpose. It is labeled as a template.
 
@@ -97,7 +159,7 @@ PowerShell:
 
 Browser tests use installed Microsoft Edge on Windows. Else install Playwright Chromium with python -m playwright install chromium, or set BROWSER_EXECUTABLE to an existing compatible browser. For service tests alone, run python -m pytest -m "not browser" -q.
 
-The suite covers database concurrency, approval invalidation, consent, request replay, accepted-then-timeout, uncertain reconciliation, pagination/partial sync, opt-outs, OAuth state, refresh rotation, CSRF and the complete synthetic browser workflow. Screenshots are saved under docs/screenshots.
+The suite also covers the send rule in both policies, the Gemini adapter against a mocked server (including the busy-model fallback), rejection of invented quotes in judging and drafting, queue pacing, the daily limit, restart safety, stop-on-unknown, automatic reply checks, and a second browser test of the assisted flow. It covers database concurrency, approval invalidation, consent, request replay, accepted-then-timeout, uncertain reconciliation, pagination/partial sync, opt-outs, OAuth state, refresh rotation, CSRF and the complete synthetic browser workflow. Screenshots are saved under docs/screenshots.
 
 ## Maintenance
 
@@ -115,6 +177,10 @@ Refresh selected sources regularly and promptly handle deletion/privacy requests
 | MODE_MISMATCH | Choose a separate database for the requested mode. |
 | SENDING_DISABLED | Intentionally enable only controlled tests in deployment configuration and restart. |
 | CONSENT_REQUIRED | Record valid consent for this sender, recipient and current purpose. |
+| RECIPIENT_NOT_ALLOWED | Under test_allowlist only registered test recipients can be messaged. See Who can be messaged. |
+| Queue shows Holding | The note names the reason: pacing and daily limit clear by themselves; sending disabled, paused, sender busy or account reconnect need action in Settings or Activity. |
+| AI fit judging was unavailable | Both Gemini models failed or the daily call limit was reached. Results use keyword ranking. Check Settings, AI usage. |
+| Draft labelled as a fallback | The model failed, cited a quote that is not in the posts, wrote over 500 characters or left out the STOP line. The template was used instead. |
 | APPROVAL_STALE | Save the current text, inspect the evidence and approve again. |
 | ALREADY_CONTACTED | Use existing activity; do not erase the ledger to send again. |
 | SEND_UNKNOWN | Inspect/reconcile. No-match does not authorize resending. |

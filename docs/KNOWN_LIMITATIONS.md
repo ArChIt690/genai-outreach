@@ -2,13 +2,28 @@
 
 ## Live verification pending
 
-No X OAuth credentials or model credentials were configured in this workspace. No real X discovery, DM exchange, paid model call, or outreach campaign was performed. The implemented live adapters have contract tests; actual entitlements, encryption/account compatibility, and provider behavior remain unverified.
+No X OAuth credentials were configured in this workspace. No real X discovery, DM exchange or outreach campaign was performed. The implemented live adapters have contract tests; actual entitlements, encryption/account compatibility, and provider behavior remain unverified. Google Gemini was called for real, but only on synthetic fixture posts.
 
 Docker Engine was not running on this machine. Native Windows Python/PostgreSQL execution and browser testing are verified. Docker files are provided; a full container build/start still needs verification.
 
 ## Product boundaries
 
-Only one operator, one active sender and configured test recipients are supported. No unrestricted campaign mode, automated follow-ups, attachments or encrypted Chat subsystem exists. Manually added test recipients are labeled honestly.
+Only one operator and one active sender are supported. No message is sent without a person approving its exact text. There are no automated follow-ups, attachments or encrypted Chat subsystem. Manually added test recipients are labeled honestly.
+
+## Assisted outreach limits
+
+- Under OUTREACH_POLICY=operator_approved the allowlist and consent checks are skipped, so the person approving is the only judge of who is contacted. This policy has never run against real X.
+- The app proves that each AI quote appears in the person's posts. It cannot prove that the AI's one-line reason, or the draft's wording, describes those posts fairly. The reviewer must read them.
+- The AI judges only the top 10 people by keyword score. Someone the keyword filter ranks low is never seen by the AI.
+- People can be found only by topic search. Starting from seed accounts and describing a segment in plain language are not built.
+- Batch drafting runs inside the web request. Ten Gemini drafts take about a minute, and the page waits.
+- The send queue and reply checks run in a thread inside the one app process. Stopping the app stops them. Run one process: several would not double-send (one stored request key per message, one sender lock) but they are not designed for it.
+- When X answers "rate limited", that message is marked rejected and needs a fresh approval. The rest of the queue waits until the time X gives.
+- An unknown send outcome stops the whole queue until a person reconciles or freezes that contact.
+- DAILY_SEND_LIMIT=10 and the 120-second gap are our own caution. The real DM limits of an X account and API tier were not verified.
+- Replies are checked automatically every AUTO_SYNC_MINUTES for 14 days after a send. Later replies appear only after Sync all now. Each check costs X reads; see COSTS.md.
+- Model availability changes. On 14 Nov 2026 gemini-flash-latest timed out or returned 503 on the free tier, so the defaults are gemini-2.5-flash then gemini-flash-lite-latest.
+- An OpenAI provider is not built. The Anthropic path is untested, including its API version header.
 
 Recent discovery covers a seven-day sample. The score is a heuristic, not a probability or a verified professional qualification. Public location is unverified. A negative search result is not evidence that suitable people do not exist.
 
@@ -22,7 +37,7 @@ Evidence revalidation runs at drafting/approval/send and through a maintenance c
 
 Local purge clears source and imported reply bodies; submitted outgoing payloads remain for audit/reconciliation. For a full local removal, pause sends, disconnect tokens, back up only what may lawfully be retained, remove the dedicated database using PostgreSQL administration, and delete any independent backups/recordings. This eliminates historical duplicate protection. Do not repurpose the old workspace as if it had never contacted anyone.
 
-Optional model generation validates schema, source IDs and quoted spans. It cannot prove semantic truth. The operator must review the resulting claims. The optional model adapter and its spend estimates are not live-verified.
+Model output is validated for schema, source IDs and quoted spans. It cannot prove semantic truth. The operator must review the resulting claims. The Gemini adapter is verified with a real key on synthetic posts; the Anthropic adapter and its spend estimates are not live-verified.
 
 Generation caches the current valid saved draft by evidence/profile/purpose/provider/model key after revalidation; failed model fallbacks are not reused as successful model generations. There is no multi-result generation cache. Local budget reservations are conservative estimates, not provider-enforced billing caps.
 

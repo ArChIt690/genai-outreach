@@ -51,22 +51,22 @@ def test_gemini_success_is_logged(gemini, monkeypatch):
     fake = use(monkeypatch, gemini_reply())
     assert complete_json(gemini, "fit", "system text", {"q": "hello"}) == {"a": 1}
     url, kwargs = fake.calls[0]
-    assert "gemini-flash-latest" in url and "test-key" not in url
+    assert "gemini-2.5-flash" in url and "test-key" not in url
     assert kwargs["headers"]["x-goog-api-key"] == "test-key"
     assert kwargs["json"]["generationConfig"]["responseMimeType"] == "application/json"
     assert kwargs["json"]["systemInstruction"]["parts"][0]["text"] == "system text"
     assert json.loads(kwargs["json"]["contents"][0]["parts"][0]["text"]) == {"q": "hello"}
     [row] = calls(gemini)
-    assert (row.kind, row.provider, row.model, row.outcome) == ("fit", "gemini", "gemini-flash-latest", "ok")
+    assert (row.kind, row.provider, row.model, row.outcome) == ("fit", "gemini", "gemini-2.5-flash", "ok")
     assert (row.input_tokens, row.output_tokens, row.error) == (12, 5, None)
 
 
 def test_busy_model_uses_fallback(gemini, monkeypatch):
     fake = use(monkeypatch, gemini_reply(status=503, body={"error": "busy"}), gemini_reply())
     assert complete_json(gemini, "draft", "s", {}) == {"a": 1}
-    assert len(fake.calls) == 2 and "gemini-2.5-flash" in fake.calls[1][0]
+    assert len(fake.calls) == 2 and "gemini-flash-lite-latest" in fake.calls[1][0]
     [row] = calls(gemini)
-    assert (row.outcome, row.model) == ("fallback_model", "gemini-2.5-flash")
+    assert (row.outcome, row.model) == ("fallback_model", "gemini-flash-lite-latest")
 
 
 def test_network_error_uses_fallback(gemini, monkeypatch):

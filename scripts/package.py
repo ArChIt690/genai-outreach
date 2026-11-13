@@ -1,7 +1,51 @@
-"""Create a source archive without local secrets, caches or database artifacts."""
+"""Create a source archive without local secrets, caches, working notes or database artifacts."""
 import argparse
+import re
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
+
+EXCLUDED_PARTS = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "runtime",
+                  "test-results", "playwright-report", "build", "dist", ".superpowers", ".claude"}
+EXCLUDED_PATHS = {("docs", "superpowers")}
+EXCLUDED_SUFFIXES = {".pyc", ".log", ".db", ".mp4", ".mov", ".zip"}
+SECRET_NAME = re.compile(r"^([A-Z0-9_]*(?:KEY|SECRET|HASH|TOKEN|PASSWORD)[A-Z0-9_]*)=(.*)$")
+
+
+def filled_secrets(template: str) -> list[str]:
+    """Names of secret-like settings in .env.example that have a value. They must all be blank."""
+    names = []
+    for line in template.splitlines():
+        found = SECRET_NAME.match(line.strip())
+        if found and found.group(2).strip().strip("'\""):
+            names.append(found.group(1))
+    return names
+
+
+def build(root: Path, destination: Path) -> int:
+    template = root / ".env.example"
+    if template.exists():
+        filled = filled_secrets(template.read_text(encoding="utf-8"))
+        if filled:
+            raise SystemExit(".env.example holds values for: " + ", ".join(filled)
+                             + ". Move them to .env and leave the template blank before packaging.")
+    with ZipFile(destination, "x", ZIP_DEFLATED) as archive:
+        for path in sorted(root.rglob("*")):
+            if not path.is_file() or path.is_symlink() or path.resolve() == destination:
+                continue
+            relative = path.relative_to(root)
+            if any(part in EXCLUDED_PARTS or part.endswith(".egg-info") for part in relative.parts):
+                continue
+            if relative.parts[:2] in EXCLUDED_PATHS:
+                continue
+            if path.name.startswith(".env") and path.name != ".env.example":
+                continue
+            if path.suffix.lower() in EXCLUDED_SUFFIXES:
+                continue
+            archive.write(path, Path(root.name) / relative)
+    with ZipFile(destination) as archive:
+        assert all(not n.endswith("/.env") for n in archive.namelist())
+        assert archive.testzip() is None
+        return len(archive.namelist())
 
 
 def main():
@@ -10,25 +54,9 @@ def main():
     parser.add_argument("--output", type=Path, default=root.parent / "genai-outreach.zip")
     args = parser.parse_args()
     destination = args.output.resolve()
-    excluded = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "runtime",
-                "test-results", "playwright-report", "build", "dist"}
-    with ZipFile(destination, "x", ZIP_DEFLATED) as archive:
-        for path in sorted(root.rglob("*")):
-            if not path.is_file() or path.is_symlink() or path.resolve() == destination:
-                continue
-            relative = path.relative_to(root)
-            if any(part in excluded or part.endswith(".egg-info") for part in relative.parts):
-                continue
-            if path.name.startswith(".env") and path.name != ".env.example":
-                continue
-            if path.suffix in {".pyc", ".log", ".db"}:
-                continue
-            archive.write(path, Path(root.name) / relative)
-    with ZipFile(destination) as archive:
-        assert all(not n.endswith("/.env") for n in archive.namelist())
-        assert archive.testzip() is None
-        print("Verified source archive:", destination)
-        print("Files:", len(archive.namelist()))
+    count = build(root, destination)
+    print("Verified source archive:", destination)
+    print("Files:", count)
 
 
 if __name__ == "__main__":

@@ -30,8 +30,8 @@ class Settings(BaseSettings):
     draft_limit_per_session: int = 40
     ai_daily_call_limit: int = 200
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-flash-latest"
-    gemini_fallback_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-2.5-flash"
+    gemini_fallback_model: str = "gemini-flash-lite-latest"
     anthropic_api_key: str = ""
     anthropic_model: str = ""
     model_data_use_acknowledged: bool = False

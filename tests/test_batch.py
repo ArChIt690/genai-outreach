@@ -68,9 +68,9 @@ def test_ai_draft_is_saved_when_quotes_check_out(gemini, monkeypatch):
     o = outreach(gemini, oid)
     assert o.draft == "Hi Ada, your benchmark work caught my eye. Reply STOP to opt out."
     assert (o.draft_meta["provider"], o.draft_meta["fallback"]) == ("gemini", None)
-    assert o.draft_meta["model"] == "gemini-flash-latest"
+    assert o.draft_meta["model"] == "gemini-2.5-flash"
     [(kind, system, payload)] = asked
-    assert kind == "draft" and "untrusted" in system.lower() and "500" in system
+    assert kind == "draft" and "untrusted" in system.lower() and "500" in system and "Hi <first name>," in system
     assert set(payload) == {"recipient", "sender", "purpose", "sources"}
     assert "test-key" not in str(payload) and "Singapore" not in str(payload)
 

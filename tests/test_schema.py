@@ -19,7 +19,7 @@ def test_new_settings_defaults():
     s = Settings(_env_file=None)
     assert (s.outreach_policy, s.draft_provider) == ("test_allowlist", "template")
     assert (s.daily_send_limit, s.send_min_gap_seconds, s.auto_sync_minutes) == (10, 120, 180)
-    assert (s.gemini_model, s.gemini_fallback_model) == ("gemini-flash-latest", "gemini-2.5-flash")
+    assert (s.gemini_model, s.gemini_fallback_model) == ("gemini-2.5-flash", "gemini-flash-lite-latest")
     assert s.draft_limit_per_session == 40
     assert (s.queue_tick_seconds, s.ai_daily_call_limit, s.worker_enabled) == (30, 200, True)
     assert s.gemini_api_key == ""
