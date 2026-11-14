@@ -8,7 +8,9 @@ from zipfile import ZIP_DEFLATED, ZipFile
 EXCLUDED_PARTS = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "runtime",
                   "test-results", "playwright-report", "build", "dist", ".superpowers", ".claude"}
 EXCLUDED_PATHS = {("docs", "superpowers")}
-EXCLUDED_SUFFIXES = {".pyc", ".log", ".db", ".mp4", ".mov", ".zip"}
+EXCLUDED_SUFFIXES = {".pyc", ".log", ".db", ".mp4", ".mov", ".zip", ".pdf"}
+# The candidate's own guide to the project is not part of the submission.
+EXCLUDED_NAMES = {"PROJECT_GUIDE.md"}
 SECRET_NAME = re.compile(r"^([A-Z0-9_]*(?:KEY|SECRET|HASH|TOKEN|PASSWORD)[A-Z0-9_]*)=(.*)$")
 
 
@@ -49,7 +51,7 @@ def build(root: Path, destination: Path) -> int:
                 continue
             if path.name.startswith(".env") and path.name != ".env.example":
                 continue
-            if path.suffix.lower() in EXCLUDED_SUFFIXES:
+            if path.suffix.lower() in EXCLUDED_SUFFIXES or path.name in EXCLUDED_NAMES:
                 continue
             archive.write(path, Path(root.name) / relative)
     with ZipFile(destination) as archive:

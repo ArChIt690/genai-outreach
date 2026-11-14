@@ -42,3 +42,13 @@ def test_filled_secrets_names_only_secret_like_keys():
     template = ("APP_MODE=fixture\n# ANTHROPIC_API_KEY=commented\nOPERATOR_PASSWORD_HASH=\n"
                 "TOKEN_ENCRYPTION_KEY=abc\nX_CLIENT_SECRET='s'\nGEMINI_API_KEY=\nX_CLIENT_ID=public-id\n")
     assert filled_secrets(template) == ["TOKEN_ENCRYPTION_KEY", "X_CLIENT_SECRET"]
+
+
+def test_archive_leaves_out_the_brief_and_the_private_guide(tmp_path):
+    root = tmp_path / "project"
+    tree(root, {"README.md": "readme", "PROJECT_GUIDE.md": "notes for the candidate",
+                "Take-Home Assignment.pdf": "the fund's brief", ".env.example": "GEMINI_API_KEY=\n"})
+    destination = tmp_path / "out.zip"
+    build(root, destination)
+    with ZipFile(destination) as archive:
+        assert {n.split("/", 1)[1] for n in archive.namelist()} == {"README.md", ".env.example"}
