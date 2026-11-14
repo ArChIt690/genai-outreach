@@ -6,7 +6,8 @@ Re-checked on 2026-11-14 after the assisted-outreach work, using Python 3.12.12,
 
 ## Automated results
 
-- 173 tests passed, including two browser workflows. 65 of them existed before the assisted-outreach work and pass unchanged.
+- 200 tests passed, including two browser workflows. 65 of them existed before the assisted-outreach work and pass unchanged.
+- Tests remove real credentials from the environment before they run, so a developer's own keys can never be used or printed by a test.
 - Ruff checks passed.
 - Python compilation passed.
 - pip check reported no broken requirements.
@@ -47,6 +48,7 @@ Screenshots from this run: screenshots/review-gemini.png and screenshots/ai-usag
 | Personalized template drafting | fixture_verified | Evidence-attributed draft visible in browser |
 | Optional Anthropic adapter | implemented | Mocked failure/source checks; no live model account |
 | Gemini adapter, fallback model, call log | model_verified | Real Gemini calls on synthetic posts; mocked failure paths |
+| OpenAI adapter and Rewrite | implemented | Mocked server only: success, busy-model fallback, cut-off answer, refusal, wrong key. No real call yet |
 | AI fit judging with quote checks | model_verified | Real Gemini on synthetic posts; invented-quote tests |
 | AI drafting and batch drafting | model_verified | Real Gemini on synthetic posts; fallback tests |
 | Send rule (OUTREACH_POLICY) | fixture_verified | Both policies tested; never run on real X |

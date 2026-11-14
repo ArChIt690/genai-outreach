@@ -11,7 +11,7 @@ Verified: the whole flow on synthetic X data (fixture mode), including real Goog
 - Python 3.12 or compatible supported Python.
 - PostgreSQL 17, or Docker Desktop/Engine with Compose.
 - For live mode: an approved X developer app, OAuth client ID/secret, API credits and DM permissions, and a controlled/explicitly consenting recipient.
-- Optional: a Google Gemini API key for AI fit judging and drafting. Without one the app ranks by keywords and writes a template draft.
+- Optional: an OpenAI or Google Gemini API key for AI fit judging and drafting. Without one the app ranks by keywords and writes a template draft.
 
 ## Start with Docker
 
@@ -48,15 +48,15 @@ Fixture mode uses only synthetic profiles, source posts and conversations. It ma
 
 ### Assisted flow: search, review, queue
 
-Set these in .env and restart (GEMINI lines are optional):
+Set these in .env and restart (the AI lines are optional; use gemini and GEMINI_API_KEY for Gemini):
 
     OUTREACH_POLICY=operator_approved
-    DRAFT_PROVIDER=gemini
-    GEMINI_API_KEY=your-key
+    DRAFT_PROVIDER=openai
+    OPENAI_API_KEY=your-key
 
 1. Sign in and search for robotics, embodied AI. Each person shows a fit (strong, possible or weak), a reason, and the quotes behind it.
 2. Select Draft for top matches. The app drafts a message for every strong or possible match, up to 10, and opens Review.
-3. On each Review card, read the reason, the quotes and the source posts. Edit the text if needed. Then choose Approve and queue, Skip, or Do not contact. Approving covers exactly the text on screen.
+3. On each Review card, read the reason, the quotes and the source posts. Edit the text if needed. Then choose Approve and queue, Skip, or Do not contact. Approving covers exactly the text on screen. If you do not like a draft, type an optional note such as "shorter" and select Rewrite: the stronger model writes a new draft from the same posts.
 4. Approved messages wait in the send queue. The app sends them one at a time, SEND_MIN_GAP_SECONDS apart, up to DAILY_SEND_LIMIT per day. Activity shows each message's place in the queue and the reason for any hold.
 5. Open a sent person's page, add a fixture reply, then select Sync all now in Activity. The conversation moves to Needs attention.
 
@@ -88,7 +88,12 @@ Switch to operator_approved on real X only for outreach your organisation has de
 
 ## AI fit judging and drafting
 
-Set DRAFT_PROVIDER=gemini and GEMINI_API_KEY in .env. Defaults: GEMINI_MODEL=gemini-2.5-flash, GEMINI_FALLBACK_MODEL=gemini-flash-lite-latest.
+Choose one provider in .env:
+
+- OpenAI: DRAFT_PROVIDER=openai and OPENAI_API_KEY. OPENAI_MODEL (default gpt-6-luna) does the judging and drafting. OPENAI_STRONG_MODEL (default gpt-6.1-terra) is tried when the first model is busy, and writes every Rewrite.
+- Gemini: DRAFT_PROVIDER=gemini and GEMINI_API_KEY. Defaults: GEMINI_MODEL=gemini-2.5-flash, GEMINI_FALLBACK_MODEL=gemini-flash-lite-latest. Gemini has no separate stronger model, so Rewrite uses the same one.
+
+The OpenAI adapter is tested against a mocked server only; it has not yet been run against the real API. The Gemini adapter has.
 
 - After each search, one model call judges the top 10 keyword matches. For each person it returns a fit, a role, a short reason and the quotes the reason rests on.
 - The app checks every quote word for word against that person's stored posts. If any quote is not found, that person's AI judgment is thrown away and the keyword score stands alone. There is no confidence percentage.
@@ -97,14 +102,16 @@ Set DRAFT_PROVIDER=gemini and GEMINI_API_KEY in .env. Defaults: GEMINI_MODEL=gem
 - Only public profile text, public posts, the sender name and the purpose are sent to the model. DMs and tokens never are. Posts are passed as data and the instructions tell the model to treat them as untrusted.
 - Settings has an AI usage section: every call with its model, tokens, time and result. AI_DAILY_CALL_LIMIT (default 200) caps calls per UTC day.
 
-Google's free tier may use submitted content to improve its products. What this app submits is public posts plus your sender name and purpose. Use a paid key if that matters to you.
+Google's free tier may use submitted content to improve its products. What this app submits is public posts plus your sender name and purpose. Use a paid key if that matters to you. For OpenAI, check the data controls of your own account.
 
 ## Settings for assisted outreach
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | OUTREACH_POLICY | test_allowlist | Who can be messaged. See above. |
-| DRAFT_PROVIDER | template | template, gemini or anthropic. |
+| DRAFT_PROVIDER | template | template, openai, gemini or anthropic. |
+| OPENAI_API_KEY | empty | Needed for openai. Keep it in .env only. |
+| OPENAI_MODEL / OPENAI_STRONG_MODEL | gpt-6-luna / gpt-6.1-terra | Everyday model; backup and Rewrite model. |
 | GEMINI_API_KEY | empty | Needed for gemini. Keep it in .env only. |
 | GEMINI_MODEL / GEMINI_FALLBACK_MODEL | gemini-2.5-flash / gemini-flash-lite-latest | First model and the one tried when the first is busy. |
 | AI_DAILY_CALL_LIMIT | 200 | Model calls per UTC day. |

@@ -18,7 +18,8 @@ The safety core (eligibility, approve, send, sync) is unchanged in behaviour. Th
 
 - app/integrations/llm.py is the only place that calls a model. It picks the provider from DRAFT_PROVIDER, retries once on a fallback model when the first is busy, strips code fences, and writes one ai_calls row per request: purpose, provider, model, tokens, time, outcome and an application-authored error code. Provider response bodies are never stored or shown.
 - app/services/fit.py judges the top 10 keyword matches of a search in one call. A judgment is kept only if it names a person from that search exactly once and every quote appears word for word in that person's stored posts. Strong and possible need at least one quote. Results are ordered strong, possible, unjudged, weak, then by keyword score.
-- app/services/drafting.py asks the model for a message, validates its quotes the same way, and falls back to the template on any failure. draft_batch drafts the best matches of one search.
+- app/services/drafting.py asks the model for a message, validates its quotes the same way, and falls back to the template on any failure. draft_batch drafts the best matches of one search. rewrite asks the stronger model for a different draft, passing the reviewer's optional note; it runs the same checks and leaves the current draft untouched if anything fails.
+- Providers: OpenAI (Responses API; everyday model with the stronger model as backup), Gemini (two models) and Anthropic (untested). All go through llm.py.
 - app/services/queue.py holds the send queue. Approve and queue approves one exact version and stores a request key with it. A background thread wakes every QUEUE_TICK_SECONDS and, when nothing holds the queue, calls the existing send function for the oldest entry with that stored key. Because the key is stored before any dispatch, a restart replays the stored result instead of sending again. X refusing a message removes it from the queue; an unknown outcome stops the queue; a rate limit makes the queue wait.
 - The same thread checks replies for sent messages every AUTO_SYNC_MINUTES for 14 days.
 - eligibility() reads OUTREACH_POLICY. Under operator_approved it skips the allowlist and consent checks for evidence-based messages only. Test messages always need both.
@@ -59,6 +60,7 @@ Reviewed 2026-11-12:
 - https://help.x.com/en/rules-and-policies/x-automation
 - https://platform.claude.com/docs/en/api/messages/create
 - https://ai.google.dev/api/generate-content (Gemini generateContent; called for real on 2026-11-14)
+- https://developers.openai.com/api/reference/python/resources/responses/methods/create (OpenAI Responses; read on 2026-11-14, not yet called)
 - https://www.postgresql.org/docs/current/explicit-locking.html
 
 Actual account access remains a separate live-verification requirement.

@@ -15,7 +15,7 @@ from app.models import (Account, Audit, Candidate, Consent, Evidence, FixtureMes
                         SearchResult, now)
 from app.security import csrf_check, new_session, session_for, verify_password
 from app.services.discovery import discover, invalidate_source, revalidate
-from app.services.drafting import draft_batch, generate
+from app.services.drafting import draft_batch, generate, rewrite
 from app.services.fit import judge
 from app.services.outreach import approve, create_outreach, locked_rows, registration, save_draft, suppress
 from app.services.queue import enqueue, skip, sync_all, unqueue
@@ -166,6 +166,10 @@ def handle(request, form):
             enqueue(rt, oid, expected)
             if back:
                 back += "?notice=" + quote_plus("Approved and queued. It will send at the configured pace.")
+        elif action == "rewrite":
+            rewrite(rt, oid, expected, operator.token_hash, form.get("note", ""))
+            if back:
+                back += "?notice=" + quote_plus("Rewritten. Read the new draft before approving.")
         elif action == "unqueue":
             unqueue(rt, oid)
         elif action == "skip":
@@ -183,7 +187,7 @@ def handle(request, form):
             suppress(rt, row.recipient_id, "Operator froze this conversation; uncertain send remains unresolved")
         else:
             raise DomainError("NOT_FOUND", "Unknown action.", 404)
-        if back and action in {"edit", "queue", "unqueue", "skip"}:
+        if back and action in {"edit", "queue", "unqueue", "skip", "rewrite"}:
             destination = back
     elif path.startswith("/candidates/") and path.endswith("/suppress"):
         recipient = request.path_params["id"]
@@ -223,7 +227,8 @@ async def post_action(request: Request):
 for route in [
     "/login", "/logout", "/settings/save", "/settings/pause", "/settings/disconnect", "/settings/purge",
     "/test-recipients", "/test-recipients/{id}/revoke", "/searches", "/searches/{id}/draft", "/outreach",
-    "/outreach/{id}/queue", "/outreach/{id}/unqueue", "/outreach/{id}/skip", "/activity/sync",
+    "/outreach/{id}/queue", "/outreach/{id}/unqueue", "/outreach/{id}/skip", "/outreach/{id}/rewrite",
+    "/activity/sync",
     "/outreach/{id}/draft", "/outreach/{id}/edit", "/outreach/{id}/approve", "/outreach/{id}/send",
     "/outreach/{id}/sync", "/outreach/{id}/reconcile", "/outreach/{id}/acknowledge", "/outreach/{id}/freeze",
     "/candidates/{id}/suppress", "/candidates/{id}/refresh", "/fixture/reply/{id}",

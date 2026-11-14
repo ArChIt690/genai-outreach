@@ -11,7 +11,7 @@ from sqlalchemy import func, select, text
 from app.config import Settings
 from app.db import initialize_workspace, make_database
 from app.errors import DomainError, ProviderError
-from app.integrations.llm import ai_ready, model_name, provider_label
+from app.integrations.llm import ai_ready, model_name, provider_label, strong_model_name
 from app.models import (Account, AICall, Attempt, Candidate, Consent, DMEvent, Evidence, Outreach, SearchResult,
                         SearchRun, Workspace)
 from app.routes import actions, oauth
@@ -84,7 +84,7 @@ def create_app(settings=None, factory=None):
             return templates.TemplateResponse(request=request, name=name, context={
                 "operator": operator, "settings": settings, "workspace": w, "account": account,
                 "pending_review": pending, "ai_on": ai_ready(settings), "ai_provider": provider_label(settings),
-                "ai_model": model_name(settings),
+                "ai_model": model_name(settings), "ai_strong_model": strong_model_name(settings),
                 "notice": request.query_params.get("notice", "")[:180], **context,
             })
 

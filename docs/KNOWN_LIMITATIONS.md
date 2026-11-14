@@ -23,7 +23,9 @@ Only one operator and one active sender are supported. No message is sent withou
 - DAILY_SEND_LIMIT=10 and the 120-second gap are our own caution. The real DM limits of an X account and API tier were not verified.
 - Replies are checked automatically every AUTO_SYNC_MINUTES for 14 days after a send. Later replies appear only after Sync all now. Each check costs X reads; see COSTS.md.
 - Model availability changes. On 14 Nov 2026 gemini-flash-latest timed out or returned 503 on the free tier, so the defaults are gemini-2.5-flash then gemini-flash-lite-latest.
-- An OpenAI provider is not built. The Anthropic path is untested, including its API version header.
+- The OpenAI provider (Responses API, JSON output) is tested only against a mocked server. Its request format follows OpenAI's public API reference, but it has never called the real API, so the first live call may need a fix. Reasoning tokens count against the output limit; the adapter asks for at least 8,192 output tokens and treats a cut-off answer as a failure.
+- Rewrite replaces the text in the box, including unsaved edits. A failed rewrite leaves the saved draft unchanged.
+- The Anthropic path is untested, including its API version header.
 
 Recent discovery covers a seven-day sample. The score is a heuristic, not a probability or a verified professional qualification. Public location is unverified. A negative search result is not evidence that suitable people do not exist.
 

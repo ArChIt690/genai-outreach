@@ -13,6 +13,16 @@ from app.services.outreach import approve, create_outreach, registration, save_d
 from app.services.runtime import Runtime
 
 TEST_PASSWORD = "test-only-browser-password"
+# Real credentials in the developer's environment must never reach a test.
+REAL_CREDENTIALS = ("OPENAI_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "X_CLIENT_ID", "X_CLIENT_SECRET",
+                    "TOKEN_ENCRYPTION_KEY", "OPERATOR_PASSWORD_HASH")
+
+
+@pytest.fixture(autouse=True)
+def no_real_credentials(monkeypatch):
+    for name in REAL_CREDENTIALS:
+        monkeypatch.delenv(name, raising=False)
+        monkeypatch.delenv(name.lower(), raising=False)
 
 
 @pytest.fixture(scope="session")

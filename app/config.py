@@ -26,9 +26,12 @@ class Settings(BaseSettings):
     auto_sync_minutes: int = 180
     worker_enabled: bool = True
     outreach_policy: Literal["test_allowlist", "operator_approved"] = "test_allowlist"
-    draft_provider: Literal["template", "gemini", "anthropic"] = "template"
+    draft_provider: Literal["template", "gemini", "openai", "anthropic"] = "template"
     draft_limit_per_session: int = 40
     ai_daily_call_limit: int = 200
+    openai_api_key: str = ""
+    openai_model: str = "gpt-6-luna"
+    openai_strong_model: str = "gpt-6.1-terra"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
     gemini_fallback_model: str = "gemini-flash-lite-latest"

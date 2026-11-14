@@ -13,7 +13,10 @@ from app.models import AICall, now
 from app.services.usage import reserve
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+OPENAI_URL = "https://api.openai.com/v1/responses"
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+# Reasoning tokens count against the output limit, so OpenAI requests get at least this much room.
+OPENAI_MIN_OUTPUT_TOKENS = 8192
 BUSY_STATUSES = {429, 500, 502, 503, 504}
 
 
@@ -33,6 +36,8 @@ class _Busy(Exception):
 def ai_ready(settings) -> bool:
     if settings.draft_provider == "gemini":
         return bool(settings.gemini_api_key)
+    if settings.draft_provider == "openai":
+        return bool(settings.openai_api_key)
     if settings.draft_provider == "anthropic":
         return bool(settings.anthropic_api_key and settings.anthropic_model
                     and settings.model_data_use_acknowledged and settings.app_mode == "live")
@@ -46,9 +51,18 @@ def provider_label(settings) -> str:
 def model_name(settings) -> str:
     if settings.draft_provider == "gemini":
         return settings.gemini_model
+    if settings.draft_provider == "openai":
+        return settings.openai_model
     if settings.draft_provider == "anthropic":
         return settings.anthropic_model
     return ""
+
+
+def strong_model_name(settings) -> str:
+    """The model used when a person asks for a rewrite. Only OpenAI has a separate stronger model."""
+    if settings.draft_provider == "openai" and settings.openai_strong_model:
+        return settings.openai_strong_model
+    return model_name(settings)
 
 
 def _parse(text):
@@ -97,6 +111,41 @@ def _gemini(settings, model, system, payload, max_tokens):
         raise
 
 
+def _openai(settings, model, system, payload, max_tokens):
+    try:
+        response = httpx.post(OPENAI_URL, headers={
+            "Authorization": "Bearer " + settings.openai_api_key,
+        }, json={
+            "model": model, "instructions": system, "input": json.dumps(payload),
+            "text": {"format": {"type": "json_object"}},
+            "max_output_tokens": max(max_tokens, OPENAI_MIN_OUTPUT_TOKENS),
+        }, timeout=60, follow_redirects=False)
+    except httpx.HTTPError:
+        raise _Busy("NETWORK") from None
+    if response.status_code in BUSY_STATUSES:
+        raise _Busy(f"HTTP_{response.status_code}")
+    if response.status_code != 200:
+        raise LLMError("AI_UNAVAILABLE", f"HTTP_{response.status_code}")
+    try:
+        body = response.json()
+        usage = body.get("usage") or {}
+        tokens = (usage.get("input_tokens"), usage.get("output_tokens"))
+        complete = body.get("status") == "completed"
+        text = "".join(part.get("text", "") for item in body.get("output") or []
+                       if item.get("type") == "message"
+                       for part in item.get("content") or [] if part.get("type") == "output_text")
+    except (ValueError, AttributeError, TypeError):
+        raise LLMError("AI_BAD_RESPONSE") from None
+    try:
+        if not complete:
+            # Usually the output limit was reached before any text was written.
+            raise LLMError("AI_BAD_RESPONSE", "AI_INCOMPLETE")
+        return _parse(text), tokens
+    except LLMError as exc:
+        exc.tokens = tokens
+        raise
+
+
 def _anthropic(settings, system, payload, max_tokens):
     # Untested against the real service.
     try:
@@ -126,9 +175,11 @@ def _record(rt, kind, provider, model, tokens, started, outcome, error):
                       outcome=outcome, error=error[:80] if error else None))
 
 
-def complete_json(rt, kind: str, system: str, payload: dict, max_tokens: int = 4096) -> dict:
+def complete_json(rt, kind: str, system: str, payload: dict, max_tokens: int = 4096,
+                  strong: bool = False) -> dict:
     """Ask the configured model for one JSON object. Raises LLMError; writes one ai_calls row
-    for every request that reaches the network."""
+    for every request that reaches the network. strong=True asks the stronger model directly,
+    where the provider has one."""
     settings = rt.settings
     if not ai_ready(settings):
         raise LLMError("AI_NOT_CONFIGURED")
@@ -142,6 +193,10 @@ def complete_json(rt, kind: str, system: str, payload: dict, max_tokens: int = 4
         # USD 0.10 conservative reservation, not a billing guarantee for arbitrary models.
         reserve(rt.factory, settings, "model_draft", 100_000, model=True)
         models = [settings.anthropic_model]
+    elif provider == "openai":
+        models = [strong_model_name(settings)] if strong else [settings.openai_model]
+        if not strong and settings.openai_strong_model and settings.openai_strong_model != settings.openai_model:
+            models.append(settings.openai_strong_model)
     else:
         models = [settings.gemini_model]
         if settings.gemini_fallback_model and settings.gemini_fallback_model != settings.gemini_model:
@@ -153,6 +208,8 @@ def complete_json(rt, kind: str, system: str, payload: dict, max_tokens: int = 4
             try:
                 if provider == "anthropic":
                     data, tokens = _anthropic(settings, system, payload, max_tokens)
+                elif provider == "openai":
+                    data, tokens = _openai(settings, model, system, payload, max_tokens)
                 else:
                     data, tokens = _gemini(settings, model, system, payload, max_tokens)
             except _Busy as busy:

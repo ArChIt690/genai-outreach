@@ -22,8 +22,12 @@
 <button type="submit" class="secondary">Save edit</button>
 <button type="submit" class="text-button" formaction="/outreach/{{ o.id }}/skip" formnovalidate>Skip</button>
 <button type="submit" class="danger-text" formaction="/candidates/{{ person.x_id }}/suppress" formnovalidate>Do not contact</button>
-<small class="muted draft-origin">{% if o.draft_meta.provider in ['gemini', 'anthropic'] %}AI draft · {{ o.draft_meta.provider }}{% elif o.draft_meta.provider == 'manual' %}Edited by you{% else %}Drafting: {{ o.draft_meta.provider }}{% endif %}{% if o.draft_meta.fallback %}. {{ o.draft_meta.fallback }}{% endif %}</small></div>
+<small class="muted draft-origin">{% if o.draft_meta.provider in ['gemini', 'openai', 'anthropic'] %}AI draft · {{ o.draft_meta.model or o.draft_meta.provider }}{% elif o.draft_meta.provider == 'manual' %}Edited by you{% else %}Drafting: {{ o.draft_meta.provider }}{% endif %}{% if o.draft_meta.fallback %}. {{ o.draft_meta.fallback }}{% endif %}</small></div>
 <p class="small muted">Approving covers exactly the text shown here, including any edit you just made.</p></form>
+{% if ai_on and not o.test_message and card.evidence %}<form action="/outreach/{{ o.id }}/rewrite" method="post" class="rewrite-form">{{ csrf() }}{{ version(o) }}<input type="hidden" name="next" value="review">
+<label for="note-{{ o.id }}">Not happy with it? <span class="muted">Optional note for the rewrite</span></label>
+<div class="button-row"><input id="note-{{ o.id }}" name="note" maxlength="300" placeholder="e.g. shorter, mention the benchmark"><button class="secondary">Rewrite with {{ ai_strong_model }}</button></div>
+<p class="small muted">Replaces the text above with a new draft from the same posts. Unsaved edits are lost. The same quote checks apply.</p></form>{% endif %}
 </article>
 {% else %}<div class="empty"><h2>Nothing is waiting for review.</h2><p>Run a search and choose “Draft for top matches”, or prepare a single message from a person's page.</p><a class="button secondary" href="/discover">Discover people</a></div>{% endfor %}
 {% if queued %}<section class="panel queue-panel" aria-labelledby="queue-title"><div class="column-heading"><h2 id="queue-title">Waiting to send</h2><span class="badge {{ 'amber' if hold else 'green' }}">{{ ('Holding: ' + hold | replace('_', ' ') | lower) if hold else 'Sending at pace' }}</span></div>

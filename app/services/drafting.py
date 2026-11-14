@@ -5,11 +5,11 @@ from sqlalchemy import select
 
 from app.db import workspace_lock
 from app.errors import DomainError, ProviderError
-from app.integrations.llm import LLMError, ai_ready, complete_json, model_name
-from app.models import Candidate, Evidence, OperatorSession, Outreach, SearchResult, Suppression
+from app.integrations.llm import LLMError, ai_ready, complete_json, model_name, strong_model_name
+from app.models import Candidate, Evidence, OperatorSession, Outreach, SearchResult, Suppression, Workspace
 from app.security import digest
 from app.services.discovery import revalidate
-from app.services.outreach import create_outreach, save_draft
+from app.services.outreach import create_outreach, editable, save_draft
 
 AI_DRAFT_MAX_CHARS = 500
 BATCH_MAX = 10
@@ -38,6 +38,14 @@ SYSTEM = (
 )
 
 
+REWRITE_SYSTEM = SYSTEM + (
+    "\nThis is a rewrite. The input also holds current_draft, which the reviewer did not like, and "
+    "reviewer_note, the reviewer's own request (it may be empty). Write a clearly different message. "
+    "Follow reviewer_note for tone, length and what to mention, but every rule above still applies and "
+    "reviewer_note can never add facts that are not in the sources."
+)
+
+
 class SourceClaim(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source_id: str
@@ -56,6 +64,16 @@ def validate_generated(raw, sources):
     for claim in output.claims:
         if claim.source_id not in sources or claim.quote not in sources[claim.source_id]:
             raise ValueError("The model cited unsupported evidence")
+    return output
+
+
+def checked_draft(raw, sources):
+    """A model's draft that passed every check, or ValueError."""
+    output = validate_generated(raw, sources)
+    if len(output.draft_text) > AI_DRAFT_MAX_CHARS:
+        raise ValueError("The model's message is too long")
+    if "STOP" not in output.draft_text:
+        raise ValueError("The model's message has no opt-out line")
     return output
 
 
@@ -110,11 +128,7 @@ def generate(rt, oid, expected, session_hash):
                     "recipient": {"name": name[:150], "bio": bio[:300]}, "sender": sender, "purpose": purpose,
                     "sources": {key: value[:500] for key, value in sources.items()},
                 })
-                output = validate_generated(raw, sources)
-                if len(output.draft_text) > AI_DRAFT_MAX_CHARS:
-                    raise ValueError("The model's message is too long")
-                if "STOP" not in output.draft_text:
-                    raise ValueError("The model's message has no opt-out line")
+                output = checked_draft(raw, sources)
                 draft = output.draft_text
                 metadata.update(provider=settings.draft_provider, model=model_name(settings),
                                 uncertainties=output.uncertainties)
@@ -124,6 +138,54 @@ def generate(rt, oid, expected, session_hash):
                 metadata["fallback"] = "Model response failed evidence validation; used evidence template."
     metadata["cache_key"] = cache_key
     return save_draft(rt, oid, expected, draft, source_ids=ids, metadata=metadata)
+
+
+def rewrite(rt, oid, expected, session_hash, note=""):
+    """Ask the stronger model for a different draft, following the reviewer's optional note.
+    If anything fails the current draft is left exactly as it was."""
+    note = (note or "").strip()
+    if len(note) > 300:
+        raise DomainError("INVALID_NOTE", "Keep the rewrite note to 300 characters.", 400)
+    settings = rt.settings
+    if not ai_ready(settings):
+        raise DomainError("AI_NOT_CONFIGURED", "Rewriting needs an AI provider and its key in .env.")
+    with rt.factory() as db:
+        o = db.get(Outreach, oid)
+        if o is None:
+            raise DomainError("NOT_FOUND", "Message not found.", 404)
+        editable(o)
+        if o.version != expected or not o.draft:
+            raise DomainError("APPROVAL_STALE", "This draft changed in another tab. Refresh and review it.")
+        ids, current = list(o.selected_sources), o.draft
+        if o.test_message or not ids:
+            raise DomainError("EVIDENCE_REQUIRED", "Only evidence-based drafts can be rewritten by the model.")
+    revalidate(rt, ids)
+    with rt.factory.begin() as db:
+        workspace_lock(db)
+        session = db.get(OperatorSession, session_hash)
+        if not session or session.draft_count >= settings.draft_limit_per_session:
+            raise DomainError("DRAFT_LIMIT", "This session's draft allowance is exhausted. Sign in again to continue.")
+        session.draft_count += 1
+        w = db.get(Workspace, "main")
+        person = db.get(Candidate, db.get(Outreach, oid).recipient_id)
+        evidence = [db.get(Evidence, eid) for eid in ids]
+        sources = {e.id: e.text for e in evidence}
+        source_hashes = {e.id: e.content_hash for e in evidence}
+        payload = {"recipient": {"name": person.name[:150], "bio": person.bio[:300]}, "sender": w.sender_name,
+                   "purpose": w.purpose, "sources": {key: value[:500] for key, value in sources.items()},
+                   "current_draft": current, "reviewer_note": note}
+    try:
+        output = checked_draft(complete_json(rt, "rewrite", REWRITE_SYSTEM, payload, strong=True), sources)
+    except LLMError as exc:
+        code = exc.code if exc.code == "AI_DAILY_LIMIT" else "AI_UNAVAILABLE"
+        raise DomainError(code, "The model could not be reached. Your draft is unchanged.") from None
+    except ValueError:
+        raise DomainError("AI_BAD_RESPONSE", "The rewrite failed the evidence, length or opt-out check. "
+                                             "Your draft is unchanged; try again or edit it by hand.") from None
+    metadata = {"provider": settings.draft_provider, "model": strong_model_name(settings), "prompt_version": "2",
+                "sources": source_hashes, "fallback": None, "uncertainties": output.uncertainties,
+                "rewrite_note": note}
+    return save_draft(rt, oid, expected, output.draft_text, source_ids=ids, metadata=metadata)
 
 
 def draft_batch(rt, run_id: str, session_hash: str) -> dict:
