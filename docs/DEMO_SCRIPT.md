@@ -1,18 +1,22 @@
 # Four minute demonstration script
 
-Record actual application behavior. Use a controlled/explicitly consenting recipient, preserve the send ledger, and hide credentials. Fixture recordings must say synthetic throughout and do not prove live integration.
+Record what the application actually does. Hide .env and any credentials. If a part is shown in fixture mode, say "synthetic data" while it is on screen; a fixture recording does not prove the live integration. On real X, send only to an account you control or a person who agreed to the test.
 
-| Time | Demonstration |
+| Time | Show |
 | --- | --- |
-| 0:00 to 0:25 | Identify the prototype's narrow scope. Show mode, connected sender, test limits and documented prerequisites. |
-| 0:25 to 1:05 | Run a real recent-post segment search. Inspect one candidate's sources, fit explanation and uncertainty. If using fixtures, label this segment synthetic. |
-| 1:05 to 1:40 | Draft from public evidence. Show exact attribution, edit the wording, and explain why a changed draft needs approval again. Show that an unconsented discovered candidate remains blocked. |
-| 1:40 to 2:15 | Open the separately registered consenting test recipient. Show consent scope and the exact sender/recipient/text. Use a manually written test message if professional evidence is absent. Approve the version. |
-| 2:15 to 2:45 | The human operator presses Send approved message once. Show the actual outcome. Never describe a fixture send or an unknown outcome as a live success. |
-| 2:45 to 3:20 | Reply from the controlled recipient account. Sync the tracked conversation and show Needs attention. Explain that earlier consent is not counted as an outreach reply. |
-| 3:20 to 3:45 | Show that another initial send is blocked and that the activity survives a restart/reconnect. Explain the no-retry behavior for uncertain outcomes. |
-| 3:45 to 4:00 | Summarize costs, seven/thirty-day coverage limits, remaining restrictions and next steps. |
+| 0:00 to 0:20 | What it is: AI finds and drafts, a person approves, the app sends and tracks. Point at the mode badge, the send-rule badge and the connected sender. |
+| 0:20 to 0:55 | Discover. Run a topic search. On one card show the fit, the AI's reason and the quotes behind it. Say that each quote is checked word for word against the person's posts. |
+| 0:55 to 1:15 | Seed accounts. Enter one handle, select Find similar people, and show the AI's one-line description and the topics it searched. |
+| 1:15 to 1:35 | Select Draft for top matches. Show the notice with the counts and that nothing was sent. |
+| 1:35 to 2:20 | Review. On one card read the reason, quotes and source posts against the draft. Edit a few words. On another card type a note such as "shorter" and select Rewrite. Skip one person. |
+| 2:20 to 2:50 | Approve and queue one message. Open Activity: show its place in the queue, then the status changing to sent without another click. Mention the 2-minute gap and the 10-a-day limit. |
+| 2:50 to 3:20 | Reply from the recipient account (or add a fixture reply). Select Sync all now and show Needs attention. Show that a second message to the same person is blocked. |
+| 3:20 to 3:40 | Settings: the send rule, the limits and the AI usage panel with real call counts, tokens and times. |
+| 3:40 to 4:00 | Limits and costs: what was verified on real X and what was not, the seven-day search window, reply-check cost, and next steps. |
 
-Use the first legitimate live send's recording if the test pair was consumed by a prior smoke test. A new live demonstration needs another separately consented uncontacted pair; do not reset history.
+Before recording:
 
-Prepare the recipient account and obtain actual consent before recording. Do not pretend that a manually added test account was organically discovered as an ideal business prospect. Inspect the final recording for secret exposure and misleading verification claims.
+- Decide which parts are live and which are fixture, and say so in the recording.
+- For a live send, prepare the recipient account and its consent first. Do not reset the contact ledger to send twice.
+- Shorten the queue gap for the recording with SEND_MIN_GAP_SECONDS if needed, and say that you did.
+- Watch the finished recording once for exposed secrets and for any claim that goes beyond what VERIFICATION.md records.

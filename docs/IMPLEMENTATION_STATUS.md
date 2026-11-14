@@ -1,15 +1,28 @@
 # Implementation status
 
-2026-11-12: Python implementation delivered from MASTER_EXECUTION_PROMPT.md.
+Last updated 2026-11-14. Statuses: verified on synthetic data (fixture), verified with a real model, or not yet run for real.
 
-| Milestone | Status | Evidence |
+| Part | Status | Evidence |
 | --- | --- | --- |
-| M0 | Implemented and fixture verified | FastAPI/Jinja app, SQLAlchemy schema, Alembic migration, lock file; fresh-environment startup |
-| M1 | Implemented; live blocked | Official X contracts reviewed; OAuth/search/DM adapters and mocked contract tests; no credentials configured |
-| M2 | Fixture verified | Real PostgreSQL race, timeout, replay, recovery and consent tests |
-| M3 | Blocked pending human account setup | No authorized real X send/reply exchange performed |
-| M4 | Fixture verified | Complete browser search/review/approval/send/sync/activity walkthrough; desktop/mobile screenshots |
-| M5 | Fixture verified; external checks pending | 65 passing tests, lint and dependency checks, 32-second cached-wheel setup trial; Docker startup and real model call unverified |
-| M6 | Documentation delivered; recording pending | README, architecture, limitations, costs, AI usage, 494-word write-up, four-minute demo script |
+| App, database schema, three migrations | Fixture verified | Fresh-database Alembic run; repeat-run tests |
+| Sign-in, sessions, CSRF | Fixture verified | HTTP and browser tests |
+| X adapters: OAuth, search, profile, DM read and send | Written; not run against real X | Mocked contract tests only; no developer credentials were available |
+| Topic search and keyword scoring | Fixture verified | Service tests on synthetic posts |
+| Seed accounts (similar people) | Fixture verified | Mocked model; unsafe-topic, unknown-seed and empty-seed tests |
+| AI fit judging with quote checks | Verified with real Gemini on synthetic posts | Real run on 2026-11-14; invented-quote tests |
+| AI drafting, batch drafting | Verified with real Gemini on synthetic posts | Real run on 2026-11-14; fallback tests |
+| OpenAI provider and Rewrite | Written; not run against the real API | Mocked server tests: success, fallback, cut-off answer, refusal, wrong key |
+| Anthropic provider | Written; not run | Mocked failure tests |
+| Send rule (OUTREACH_POLICY) | Fixture verified | Both policies tested |
+| Review page, send queue, background worker | Fixture verified | Service, HTTP and browser tests; real worker thread in the Gemini run |
+| Duplicate prevention, no-retry, recovery | Fixture verified | Real PostgreSQL race, timeout, replay and restart tests |
+| Reply checks, STOP handling | Fixture verified | Service and browser tests |
+| AI usage panel | Verified with real Gemini | Shows the real calls from the run |
+| Packaging | Verified | Refuses a template that holds a secret; leaves out .env and working notes |
+| Docker setup | Not run | Docker was not running on the development machine |
+| Live X authorization, search, send, reply | Not run | Needs a developer app, credits and a controlled recipient |
+| Demo recording | Not done | To be recorded by the candidate |
 
-No live API success, paid API call, real message, public deployment or completed live recording is claimed.
+230 automated tests pass, including two browser workflows. Lint and dependency checks pass.
+
+No real X request, real message, or OpenAI call has been made. The only external service called was Google Gemini, on synthetic posts.
