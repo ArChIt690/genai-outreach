@@ -60,9 +60,9 @@ class XClient:
             raise ProviderError("X_RESOURCE_UNAVAILABLE", 404, True)
         return data
 
-    def search(self, query):
+    def search(self, query, limit=50):
         return self.request("GET", "/2/tweets/search/recent", params={
-            "query": query, "max_results": 50, "expansions": "author_id",
+            "query": query, "max_results": max(10, min(50, limit)), "expansions": "author_id",
             "tweet.fields": "created_at,author_id",
             "user.fields": "description,location,protected",
         })

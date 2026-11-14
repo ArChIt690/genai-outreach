@@ -15,7 +15,7 @@ Only one operator and one active sender are supported. No message is sent withou
 - Under OUTREACH_POLICY=operator_approved the allowlist and consent checks are skipped, so the person approving is the only judge of who is contacted. This policy has never run against real X.
 - The app proves that each AI quote appears in the person's posts. It cannot prove that the AI's one-line reason, or the draft's wording, describes those posts fairly. The reviewer must read them.
 - The AI judges only the top 10 people by keyword score. Someone the keyword filter ranks low is never seen by the AI.
-- People can be found only by topic search. Starting from seed accounts and describing a segment in plain language are not built.
+- Seed accounts find people who do similar work: the AI turns the seeds' posts into search topics. The app does not read who a seed follows, replies to or is followed by, so it will miss close contacts who post about other things. It needs an AI provider and reads only the seed's last few posts from X's seven-day search window; a seed that has not posted that week cannot be used. Describing a segment in plain language is not built.
 - Batch drafting runs inside the web request. Ten Gemini drafts take about a minute, and the page waits.
 - The send queue and reply checks run in a thread inside the one app process. Stopping the app stops them. Run one process: several would not double-send (one stored request key per message, one sender lock) but they are not designed for it.
 - When X answers "rate limited", that message is marked rejected and needs a fresh approval. The rest of the queue waits until the time X gives.

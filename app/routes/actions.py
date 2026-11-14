@@ -19,6 +19,7 @@ from app.services.drafting import draft_batch, generate, rewrite
 from app.services.fit import judge
 from app.services.outreach import approve, create_outreach, locked_rows, registration, save_draft, suppress
 from app.services.queue import enqueue, skip, sync_all, unqueue
+from app.services.seeds import seed_search
 from app.services.sending import send
 from app.services.synchronization import acknowledge, reconcile, sync
 
@@ -121,8 +122,11 @@ def handle(request, form):
             for o in db.scalars(select(Outreach).where(Outreach.recipient_id == consent.recipient_id)):
                 o.approved_hash, o.approval_snapshot = None, None
             db.add(Audit(action="test_consent_revoked", subject=consent.recipient_id))
-    elif path == "/searches":
-        run = discover(rt, form.get("topics", ""), form.get("roles", ""), form.get("location", ""))
+    elif path in {"/searches", "/searches/seed"}:
+        if path == "/searches/seed":
+            run = seed_search(rt, form.get("handles", ""))
+        else:
+            run = discover(rt, form.get("topics", ""), form.get("roles", ""), form.get("location", ""))
         destination = f"/discover?run={run}"
         if ai_ready(rt.settings) and not judge(rt, run):
             with rt.factory() as db:
@@ -226,7 +230,8 @@ async def post_action(request: Request):
 
 for route in [
     "/login", "/logout", "/settings/save", "/settings/pause", "/settings/disconnect", "/settings/purge",
-    "/test-recipients", "/test-recipients/{id}/revoke", "/searches", "/searches/{id}/draft", "/outreach",
+    "/test-recipients", "/test-recipients/{id}/revoke", "/searches", "/searches/seed", "/searches/{id}/draft",
+    "/outreach",
     "/outreach/{id}/queue", "/outreach/{id}/unqueue", "/outreach/{id}/skip", "/outreach/{id}/rewrite",
     "/activity/sync",
     "/outreach/{id}/draft", "/outreach/{id}/edit", "/outreach/{id}/approve", "/outreach/{id}/send",

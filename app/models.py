@@ -64,6 +64,8 @@ class SearchRun(Base):
     count: Mapped[int] = mapped_column(Integer, default=0)
     capped: Mapped[bool] = mapped_column(Boolean, default=False)
     created: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    seed_handles: Mapped[list | None] = mapped_column(JSON)
+    seed_summary: Mapped[str | None] = mapped_column(Text)
 
 
 class Candidate(Base):

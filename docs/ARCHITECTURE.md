@@ -19,6 +19,7 @@ The safety core (eligibility, approve, send, sync) is unchanged in behaviour. Th
 - app/integrations/llm.py is the only place that calls a model. It picks the provider from DRAFT_PROVIDER, retries once on a fallback model when the first is busy, strips code fences, and writes one ai_calls row per request: purpose, provider, model, tokens, time, outcome and an application-authored error code. Provider response bodies are never stored or shown.
 - app/services/fit.py judges the top 10 keyword matches of a search in one call. A judgment is kept only if it names a person from that search exactly once and every quote appears word for word in that person's stored posts. Strong and possible need at least one quote. Results are ordered strong, possible, unjudged, weak, then by keyword score.
 - app/services/drafting.py asks the model for a message, validates its quotes the same way, and falls back to the template on any failure. draft_batch drafts the best matches of one search. rewrite asks the stronger model for a different draft, passing the reviewer's optional note; it runs the same checks and leaves the current draft untouched if anything fails.
+- app/services/seeds.py starts a search from seed accounts. It reads each seed's profile and recent posts, asks the model for a one-sentence description and search topics, keeps only topics that pass the same character rules as typed topics (so the model cannot inject search operators), and calls the normal discovery with the seeds excluded. The description is stored on the search run and given to fit judging.
 - Providers: OpenAI (Responses API; everyday model with the stronger model as backup), Gemini (two models) and Anthropic (untested). All go through llm.py.
 - app/services/queue.py holds the send queue. Approve and queue approves one exact version and stores a request key with it. A background thread wakes every QUEUE_TICK_SECONDS and, when nothing holds the queue, calls the existing send function for the oldest entry with that stored key. Because the key is stored before any dispatch, a restart replays the stored result instead of sending again. X refusing a message removes it from the queue; an unknown outcome stops the queue; a rate limit makes the queue wait.
 - The same thread checks replies for sent messages every AUTO_SYNC_MINUTES for 14 days.
@@ -26,7 +27,7 @@ The safety core (eligibility, approve, send, sync) is unchanged in behaviour. Th
 
 Untrusted text: posts and profiles reach the model inside a JSON payload, never inside the instructions, and the instructions say to treat them as data. The model has no tools. Its output can only become a judgment or a draft, both checked against stored posts and both shown to a person before anything is sent.
 
-Schema: migration 0002 adds the ai_calls table, AI fit columns on search_results and queue columns on outreach, and is safe to repeat.
+Schema: migration 0002 adds the ai_calls table, AI fit columns on search_results and queue columns on outreach. Migration 0003 adds the seed columns on search_runs. Both are safe to repeat.
 
 ## Transaction protocol
 

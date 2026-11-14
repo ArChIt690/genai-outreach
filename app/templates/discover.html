@@ -9,12 +9,17 @@
 <div><label for="location">Location term <span class="muted">(optional)</span></label><input id="location" name="location" placeholder="Singapore" maxlength="100"></div>
 <button type="submit" {% if not account %}disabled{% endif %}>Find relevant people</button>
 </form><p class="small muted">Up to 50 posts and 20 people per search. Location is a search term, not a verified residence. <a href="/settings">Connection settings</a></p>
+<form action="/searches/seed" method="post" class="seed-form">{{ csrf() }}
+<label for="handles">Or start from accounts you already rate <span class="muted">(1 to 3 X handles)</span></label>
+<div class="button-row"><input id="handles" name="handles" placeholder="@ada_robotics, @another_builder" required maxlength="120"><button class="secondary" type="submit" {% if not account or not ai_on %}disabled{% endif %}>Find similar people</button></div>
+<p class="small muted">{% if ai_on %}The AI reads each seed's public bio and recent posts, describes the kind of work they do, and searches for people doing similar work. The seeds themselves are left out.{% else %}Needs an AI provider (DRAFT_PROVIDER and its key in .env).{% endif %}</p></form>
 </section>
 {% if run %}
 <div class="results-heading"><div><h2>People and their work</h2><p class="small muted">{{ results | length }} people from {{ run.count }} posts. Retrieved {{ run.created.strftime('%d %b %Y, %H:%M UTC') }}.</p></div>
 <div class="button-row"><span class="badge {{ 'amber' if run.capped else 'blue' }}">{{ 'Capped sample' if run.capped else 'Search sample complete' }}</span>
 {% if results %}<form action="/searches/{{ run.id }}/draft" method="post">{{ csrf() }}<button class="secondary">Draft for top matches</button></form>{% endif %}</div></div>
 {% if results %}<p class="small muted">{% if judged %}Ordered by AI fit ({{ ai_provider }}), then keyword score. Every AI reason is backed by quotes checked word for word against the person's posts.{% elif ai_on %}AI fit judging returned nothing usable for this search, so the order is keyword score only.{% else %}Ordered by keyword score. AI fit judging is off (DRAFT_PROVIDER=template).{% endif %} “Draft for top matches” prepares drafts for review; it never sends.</p>{% endif %}
+{% if run.seed_handles %}<div class="notice">Started from {% for handle in run.seed_handles %}@{{ handle }}{{ '' if loop.last else ', ' }}{% endfor %}. The AI described them as: “{{ run.seed_summary }}” Topics searched: {{ run.terms | join(', ') }}.</div>{% endif %}
 <details class="query"><summary>Inspect the query</summary><code>{{ run.query }}</code><p class="small">Ranking applies only to this retrieved sample.</p></details>
 {% if results %}<div class="people-grid">{% for result, person in results %}
 <article class="person-card"><div class="person-top"><span class="avatar">{{ person.name[:1] }}</span><div><h3><a href="/candidates/{{ person.x_id }}">{{ person.name }}</a></h3><span class="muted">@{{ person.handle }}</span></div>

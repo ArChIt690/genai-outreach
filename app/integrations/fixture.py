@@ -42,11 +42,16 @@ class FixtureClient:
                 return profile.copy()
         raise ProviderError("X_RESOURCE_UNAVAILABLE", 404, True)
 
-    def search(self, query):
+    def search(self, query, limit=50):
         terms = [x.lower() for x in query.split('"')[1::2]]
         posts = self.posts([x[0] for x in TEXTS])["data"]
-        if terms:
+        if query.startswith("from:"):
+            handle = query.split()[0][5:]
+            author = next((p["id"] for p in PROFILES if p["username"] == handle), None)
+            posts = [p for p in posts if p["author_id"] == author]
+        elif terms:
             posts = [p for p in posts if any(t in p["text"].lower() for t in terms)]
+        posts = posts[:limit]
         return {"data": posts, "includes": {"users": [x.copy() for x in PROFILES]},
                 "meta": {"result_count": len(posts)}}
 

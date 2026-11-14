@@ -67,7 +67,8 @@ def upsert_candidate(db, profile, manual=False):
     return row
 
 
-def discover(rt, topics, roles="", location=""):
+def discover(rt, topics, roles="", location="", exclude=(), seed=None):
+    """exclude: X ids to leave out (seed accounts). seed: {"handles", "summary"} kept on the run."""
     query, terms = build_query(topics, roles, location)
     payload = rt.read("search", query)
     posts = payload.get("data") or []
@@ -78,7 +79,8 @@ def discover(rt, topics, roles="", location=""):
     sender = rt.active_account().x_id
     ranked = []
     for user in payload.get("includes", {}).get("users", []):
-        if str(user["id"]) == sender or user.get("protected") or str(user["id"]) not in by_author:
+        if str(user["id"]) == sender or user.get("protected") or str(user["id"]) not in by_author \
+                or str(user["id"]) in exclude:
             continue
         evidence = by_author[str(user["id"])][:3]
         score, reasons = score_candidate(user, evidence, terms)
@@ -89,6 +91,8 @@ def discover(rt, topics, roles="", location=""):
         run = SearchRun(query=query, terms=terms, count=len(posts),
                         capped=bool(payload.get("meta", {}).get("next_token")) or len(ranked) > 20
                         or bool(payload.get("errors")))
+        if seed:
+            run.seed_handles, run.seed_summary = list(seed["handles"]), seed["summary"]
         db.add(run)
         db.flush()
         for score, profile, evidence, reasons in ranked[:20]:

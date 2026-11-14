@@ -14,6 +14,8 @@ Source: https://docs.x.com/x-api/getting-started/pricing
 
 At the X prices listed above, per search: up to 50 posts and 20 users read, USD 0.45.
 
+Per seed account: one profile read and up to 10 posts, about USD 0.06, plus one small model call. The search that follows costs the same as a topic search.
+
 Per approved message: the quoted posts are re-read at approval and again at send (up to 3 posts each time, USD 0.03), the conversation history is read before sending (USD 0.01 per event returned, nothing for an empty history), and the DM itself is USD 0.015. About USD 0.05 per message.
 
 Reply checks are the largest recurring cost. Each check re-reads the conversation, at USD 0.01 per event returned. A conversation holding only our one message costs USD 0.01 per check. At the default AUTO_SYNC_MINUTES=180 that is 8 checks a day for 14 days, about USD 1.12 per conversation. Set AUTO_SYNC_MINUTES=720 for about USD 0.28, or 0 and use Sync all now by hand. Every read is reserved against X_BUDGET_USD first, so the cap stops spending when it is reached.

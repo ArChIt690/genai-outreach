@@ -60,6 +60,12 @@ Set these in .env and restart (the AI lines are optional; use gemini and GEMINI_
 4. Approved messages wait in the send queue. The app sends them one at a time, SEND_MIN_GAP_SECONDS apart, up to DAILY_SEND_LIMIT per day. Activity shows each message's place in the queue and the reason for any hold.
 5. Open a sent person's page, add a fixture reply, then select Sync all now in Activity. The conversation moves to Needs attention.
 
+### Start from seed accounts
+
+Instead of topics, enter one to three X handles you already rate under "Or start from accounts you already rate" and select Find similar people. The AI reads each seed's public bio and up to five recent posts, writes one sentence describing their work, and proposes search topics. The app runs its normal search with those topics, leaves the seeds out of the results, and judges each person by how similar their work is to the seeds. The results page shows the seeds, the AI's description and the topics used.
+
+This needs an AI provider. It finds people who do similar work; it does not read who the seeds follow or talk to.
+
 ### Manual test-recipient flow
 
 1. Sign in. Search for robotics and embodied AI.
