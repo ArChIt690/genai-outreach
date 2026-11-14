@@ -1,4 +1,6 @@
 
+from datetime import timedelta
+
 from sqlalchemy import func, select
 
 from app.errors import DomainError, ProviderError
@@ -91,11 +93,13 @@ def send(rt, oid, expected, request_key):
                 attempt.external_id = str(result["dm_event_id"])
                 o.conversation_id = str(result["dm_conversation_id"])
                 o.sent_at = parse_time(result["created_at"]) if result.get("created_at") else now()
-            if retry_at:
-                a.cooldown_until = retry_at
+            rate_limited = outcome == "rejected" and error == "RATE_LIMITED"
+            if retry_at or rate_limited:
+                # Without a reset time from X, wait 15 minutes rather than try the next message at once.
+                a.cooldown_until = retry_at or now() + timedelta(minutes=15)
             if outcome in {"sent", "rejected"} and a.active_attempt == aid:
                 a.active_attempt = None
-            if outcome == "rejected":
+            if outcome == "rejected" and not rate_limited:
                 o.approved_hash, o.approval_snapshot = None, None
             db.add(Audit(action="send_" + outcome, subject=oid, details={"attempt": aid, "code": error}))
         return outcome

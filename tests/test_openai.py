@@ -73,7 +73,9 @@ def test_openai_success_uses_luna_and_is_logged(openai, monkeypatch):
     assert kwargs["headers"]["Authorization"] == "Bearer test-openai-key"
     body = kwargs["json"]
     assert body["model"] == "gpt-6-luna" and body["instructions"] == "Return JSON."
-    assert json.loads(body["input"]) == {"q": "hello"}
+    prefix, _, data = body["input"].partition("\n")
+    assert prefix == "Input JSON:" and json.loads(data) == {"q": "hello"}
+    assert body["store"] is False
     assert body["text"] == {"format": {"type": "json_object"}}
     assert body["max_output_tokens"] >= 8192
     assert "test-openai-key" not in json.dumps(body)

@@ -1,4 +1,5 @@
 import json
+import re
 
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
@@ -12,6 +13,9 @@ from app.services.discovery import revalidate
 from app.services.outreach import create_outreach, editable, save_draft
 
 AI_DRAFT_MAX_CHARS = 500
+# A quote shorter than this ("a", "the robot") proves nothing about the person.
+MIN_QUOTE_CHARS = 20
+LINK_OR_MENTION = re.compile(r"https?://|www\.|@\w", re.I)
 BATCH_MAX = 10
 KEYWORD_SCORE_FOR_BATCH = 7
 
@@ -49,7 +53,7 @@ REWRITE_SYSTEM = SYSTEM + (
 class SourceClaim(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source_id: str
-    quote: str = Field(min_length=1, max_length=500)
+    quote: str = Field(min_length=MIN_QUOTE_CHARS, max_length=500)
 
 
 class GeneratedDraft(BaseModel):
@@ -74,6 +78,8 @@ def checked_draft(raw, sources):
         raise ValueError("The model's message is too long")
     if "STOP" not in output.draft_text:
         raise ValueError("The model's message has no opt-out line")
+    if LINK_OR_MENTION.search(output.draft_text):
+        raise ValueError("The model's message contains a link or a mention")
     return output
 
 
@@ -130,6 +136,7 @@ def generate(rt, oid, expected, session_hash):
                 })
                 output = checked_draft(raw, sources)
                 draft = output.draft_text
+                metadata.update(claims=[c.model_dump() for c in output.claims])
                 metadata.update(provider=settings.draft_provider, model=model_name(settings),
                                 uncertainties=output.uncertainties)
             except LLMError:
@@ -184,7 +191,7 @@ def rewrite(rt, oid, expected, session_hash, note=""):
                                              "Your draft is unchanged; try again or edit it by hand.") from None
     metadata = {"provider": settings.draft_provider, "model": strong_model_name(settings), "prompt_version": "2",
                 "sources": source_hashes, "fallback": None, "uncertainties": output.uncertainties,
-                "rewrite_note": note}
+                "rewrite_note": note, "claims": [c.model_dump() for c in output.claims]}
     return save_draft(rt, oid, expected, output.draft_text, source_ids=ids, metadata=metadata)
 
 

@@ -28,7 +28,8 @@ HOLD_CODES = {"SENDING_PAUSED", "SENDING_DISABLED", "RATE_LIMITED", "HISTORY_ACK
 # Holds that may be specific to one conversation: let the next message go first.
 ROTATE_CODES = {"HISTORY_INCOMPLETE", "X_UNAVAILABLE"}
 # Holds that cost a network call to discover: the worker waits longer before trying again.
-BACKOFF_CODES = {"HISTORY_INCOMPLETE", "X_UNAVAILABLE", "TOKEN_REFRESH_BUSY", "BUDGET_EXCEEDED"}
+BACKOFF_CODES = {"HISTORY_INCOMPLETE", "X_UNAVAILABLE", "TOKEN_REFRESH_BUSY", "BUDGET_EXCEEDED",
+                 "ACCOUNT_RECONNECT_REQUIRED"}
 BACKOFF_SECONDS = 300
 # Replies are checked automatically for this long after a send; "Sync all now" has no such limit.
 SYNC_WINDOW_DAYS = 14
@@ -140,6 +141,11 @@ def _settle(db, oid=None):
     if not found:
         return None
     _, _, o = locked_rows(db, found.id)
+    if found.status == "rejected" and found.error == "RATE_LIMITED":
+        # X refused for rate reasons, so nothing was delivered. Keep the message, its approval and its
+        # place; a fresh key lets it be tried once the cooldown set by send() has passed.
+        o.queue_key, o.queue_note = secrets.token_urlsafe(24), "RATE_LIMITED"
+        return "held:RATE_LIMITED"
     o.queued_at, o.queue_key = None, None
     o.queue_note = found.error if found.status == "rejected" else None
     return found.status
@@ -179,8 +185,8 @@ def tick(rt) -> str:
         if outcome not in {"sent", "rejected", "unknown"}:
             return "held:SENDER_BUSY"
         with rt.factory.begin() as db:
-            _settle(db, oid)
-        return outcome
+            settled = _settle(db, oid)
+        return settled if settled and settled.startswith("held:") else outcome
     with rt.factory.begin() as db:
         _, _, o = locked_rows(db, oid)
         if o.queue_key != key:
@@ -216,9 +222,13 @@ def sync_due(rt) -> int:
             Outreach.send_status == "sent", Outreach.sent_at >= now() - timedelta(days=SYNC_WINDOW_DAYS),
             or_(Outreach.last_sync.is_(None), Outreach.last_sync < now() - timedelta(minutes=minutes)),
         ).order_by(Outreach.sent_at)))
+    tried = 0
     for oid in due:
-        _sync_one(rt, oid)
-    return len(due)
+        tried += 1
+        if not _sync_one(rt, oid):
+            # X is failing or the budget is spent: stop this pass rather than repeat the failure.
+            break
+    return tried
 
 
 def sync_all(rt) -> tuple[int, int]:
@@ -228,6 +238,11 @@ def sync_all(rt) -> tuple[int, int]:
                                .order_by(Outreach.sent_at)))
     succeeded = sum(1 for oid in sent if _sync_one(rt, oid))
     return succeeded, len(sent) - succeeded
+
+
+def backs_off(result: str) -> bool:
+    """Whether the worker should pause for BACKOFF_SECONDS after this step."""
+    return result.startswith("error:") or result.split(":")[-1] in BACKOFF_CODES
 
 
 class Worker:
@@ -270,5 +285,5 @@ class Worker:
             if time.monotonic() < self._wait_until:
                 continue
             result = self.run_once()
-            if result.startswith("error:") or result.split(":")[-1] in BACKOFF_CODES:
+            if backs_off(result):
                 self._wait_until = time.monotonic() + BACKOFF_SECONDS

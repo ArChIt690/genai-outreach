@@ -116,7 +116,8 @@ def _openai(settings, model, system, payload, max_tokens):
         response = httpx.post(OPENAI_URL, headers={
             "Authorization": "Bearer " + settings.openai_api_key,
         }, json={
-            "model": model, "instructions": system, "input": json.dumps(payload),
+            "model": model, "instructions": system, "input": "Input JSON:\n" + json.dumps(payload),
+            "store": False,
             "text": {"format": {"type": "json_object"}},
             "max_output_tokens": max(max_tokens, OPENAI_MIN_OUTPUT_TOKENS),
         }, timeout=60, follow_redirects=False)

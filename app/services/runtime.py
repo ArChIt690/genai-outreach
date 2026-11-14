@@ -6,12 +6,15 @@ import httpx
 from sqlalchemy import select
 
 from app.db import workspace_lock
-from app.errors import DomainError
+from app.errors import DomainError, ProviderError
 from app.integrations.fixture import FixtureClient
 from app.integrations.x_client import XClient
 from app.models import Account, now
 from app.security import cipher
 from app.services.usage import reserve, settle
+
+# Failures after which X may still have returned (and billed) data. Any other X error answer returns none.
+UNCERTAIN_READS = {"X_NETWORK_UNCERTAIN", "X_MALFORMED_RESPONSE"}
 
 
 class Runtime:
@@ -89,10 +92,17 @@ class Runtime:
     def read(self, method, *args, account_id=None, **kwargs):
         bounds = {"me": 10_000, "user": 10_000, "search": 750_000,
                   "posts": max(1, len(args[0]) if args else 1) * 5_000, "events": 200_000}
-        usage_id = reserve(self.factory, self.settings, "x_" + method, bounds[method])
-        # Any failure conservatively retains its reservation.
+        # The provider (and in live mode the token) is resolved first, so a local failure such as an
+        # expired authorization reserves nothing.
         with self.provider(account_id) as provider:
-            payload = getattr(provider, method)(*args, **kwargs)
+            usage_id = reserve(self.factory, self.settings, "x_" + method, bounds[method])
+            try:
+                payload = getattr(provider, method)(*args, **kwargs)
+            except ProviderError as exc:
+                # An error answer from X returns no data. A lost or garbled answer keeps its reservation.
+                if exc.code not in UNCERTAIN_READS:
+                    settle(self.factory, usage_id, 0)
+                raise
         if method in {"me", "user"}:
             actual = 10_000
         elif method == "search":

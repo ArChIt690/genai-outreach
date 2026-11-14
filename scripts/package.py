@@ -1,6 +1,7 @@
 """Create a source archive without local secrets, caches, working notes or database artifacts."""
 import argparse
 import re
+import subprocess
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -21,6 +22,15 @@ def filled_secrets(template: str) -> list[str]:
     return names
 
 
+def candidates(root: Path) -> list[Path]:
+    """Files tracked by git when root is a repository, so untracked notes and downloads never ship.
+    Outside a repository, every file under root."""
+    if (root / ".git").exists():
+        listed = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, check=True).stdout
+        return sorted(root / name for name in listed.decode("utf-8").split("\0") if name)
+    return sorted(root.rglob("*"))
+
+
 def build(root: Path, destination: Path) -> int:
     template = root / ".env.example"
     if template.exists():
@@ -29,7 +39,7 @@ def build(root: Path, destination: Path) -> int:
             raise SystemExit(".env.example holds values for: " + ", ".join(filled)
                              + ". Move them to .env and leave the template blank before packaging.")
     with ZipFile(destination, "x", ZIP_DEFLATED) as archive:
-        for path in sorted(root.rglob("*")):
+        for path in candidates(root):
             if not path.is_file() or path.is_symlink() or path.resolve() == destination:
                 continue
             relative = path.relative_to(root)

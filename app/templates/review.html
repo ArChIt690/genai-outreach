@@ -15,6 +15,7 @@
 {% for item in card.evidence %}<blockquote>{{ item.text if item.available else 'This post is no longer available.' }}</blockquote><p class="small muted">{{ item.published.strftime('%d %b %Y') }}{% if item.url %} · <a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">Open on X</a>{% endif %}</p>{% endfor %}</details>{% endif %}
 {% if o.queue_note %}<p class="alert">Removed from the send queue: {{ o.queue_note | replace('_', ' ') | lower }}.</p>{% endif %}
 {% if card.blocked %}<div class="blocked-reasons"><strong>This person cannot be queued:</strong> {% for reason in card.blocked %}{{ reason | replace('_', ' ') | lower }}{{ '' if loop.last else ', ' }}{% endfor %}.</div>{% endif %}
+{% if o.draft_meta.claims %}<div class="relies"><span class="small muted">Draft relies on:</span><ul class="quote-list">{% for claim in o.draft_meta.claims %}<li>“{{ claim.quote }}”</li>{% endfor %}</ul></div>{% endif %}
 <form action="/outreach/{{ o.id }}/edit" method="post" class="review-form">{{ csrf() }}{{ version(o) }}<input type="hidden" name="next" value="review">{% if o.test_message %}<input type="hidden" name="test_message" value="on">{% endif %}
 <label for="text-{{ o.id }}">Exact message text <span class="muted">Version {{ o.version }}</span></label>
 <textarea id="text-{{ o.id }}" name="text" rows="5" maxlength="800" required>{{ o.draft }}</textarea>
