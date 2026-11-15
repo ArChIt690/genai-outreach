@@ -22,7 +22,7 @@ def discovered(rt):
     return oid
 
 
-def test_test_list_rule_blocks_discovered_people(rt):
+def test_default_policy_blocks_discovered_people(rt):
     oid = discovered(rt)
     with pytest.raises(DomainError) as e:
         send(rt, oid, 1, key())
