@@ -32,35 +32,209 @@ Open **http://127.0.0.1:8000** and sign in with your password.
 
 The app starts in **synthetic mode**: five made-up people and a pretend X. Nothing reaches X; a yellow banner says so on every page.
 
-1. Optional, to see the AI: open `.env` in any text editor, set `DRAFT_PROVIDER=openai` and `OPENAI_API_KEY=your-key` (only the made-up posts are sent), then restart (`Ctrl+C`, `docker compose up`). Without a key you get keyword ranking and a template draft.
-2. **Settings:** fill in "Who is writing, and why?", **tick the 30-day history box**, Save. (The send queue waits until this box is ticked.)
-3. **Discover:** search `robotics, embodied AI`. Each person shows a fit, a reason and quotes.
-4. **Draft for top matches** → you land on **Review**. Read a draft, edit it or Rewrite it, then **Approve and queue**.
-5. **Activity:** the status turns **sent** within about 30 seconds.
-6. Open that person's page → type under "Synthetic recipient reply" → **Add fixture reply** → back in Activity click **Sync all now**. The row moves to **Needs attention**.
+1. Open `.env` in any text editor and change:
+   ```
+   OUTREACH_POLICY=operator_approved
+   ```
+   Optional, to see the AI: also set `DRAFT_PROVIDER=openai` and `OPENAI_API_KEY=your-key` (only the made-up posts are sent). Without a key you get keyword ranking and a template draft.
+2. Restart: `Ctrl+C`, then `docker compose up`.
+3. **Settings:** fill in "Who is writing, and why?", **tick the 30-day history box**, Save. (The send queue waits until this box is ticked.)
+4. **Discover:** search `robotics, embodied AI`. Each person shows a fit, a reason and quotes.
+5. **Draft for top matches** → you land on **Review**. Read a draft, edit it or Rewrite it, then **Approve and queue**.
+6. **Activity:** the status turns **sent** within about 30 seconds.
+7. Open that person's page → type under "Synthetic recipient reply" → **Add fixture reply** → back in Activity click **Sync all now**. The row moves to **Needs attention**.
 
-### Step 3: run real outreach (about 5 minutes, once you have an X app)
+### Step 3: test it on real X with your own two accounts
 
-Needs an X developer app with credits. How to create it: see **"Create the X developer app"** below.
+This is exactly how the author tested it. You message **a second X account that you control**, so no stranger can be reached while you test. It costs about USD 0.10 to 0.20 of X credits and less than one cent of AI.
 
-1. Stop the app and clear the synthetic data: `Ctrl+C`, then `docker compose down -v`.
-2. In `.env`, set:
+**You need:**
+
+- An X developer account with credits (pay-per-use, in the X Developer Console).
+- Your **sending** X account (the one messages should come from, e.g. the fund's account).
+- A **second** X account that you control (the test recipient).
+- An OpenAI API key (or Gemini, see "All settings").
+
+#### 3.1 Set up the X app
+
+In the [X Developer Console](https://developer.x.com), open your app.
+
+1. Click **Settings** (top right of the app) and find **User authentication settings**. Click **Set up** (or **Edit**) and fill in:
+
+   | Field | Value |
+   |---|---|
+   | App permissions | **Read and write and Direct message** |
+   | Type of App | **Web App, Automated App or Bot** (confidential client) |
+   | Callback URI / Redirect URL | `http://127.0.0.1:8000/oauth/x/callback` |
+   | Website URL | any URL of yours, e.g. your GitHub profile |
+
+   Save. If **Keys and Tokens** shows your Access Token as **"Read"** only, the Direct message permission is still missing and the app will not be able to send.
+2. Go to **Keys and Tokens**, scroll down past "OAuth 1.0 Keys" to **OAuth 2.0 Keys**, and copy the **Client ID** and the **Client Secret** (click Generate or Regenerate if needed; the secret is shown only once). You do **not** need the Bearer Token, Consumer Key or Access Token.
+3. Check that the project has credits (**Billing → Credits**).
+
+Never paste these keys into chats or commit them; they only go into `.env`.
+
+#### 3.2 Switch the app to live mode
+
+1. Stop the app (`Ctrl+C`) and delete the synthetic data (live data needs a fresh database):
+   ```
+   docker compose down -v
+   ```
+2. Open `.env` and **edit the existing lines** (don't add duplicates), then save:
    ```
    APP_MODE=live
-   X_CLIENT_ID=your-client-id
-   X_CLIENT_SECRET=your-client-secret
+   X_CLIENT_ID=paste-your-client-id
+   X_CLIENT_SECRET=paste-your-client-secret
+   OUTREACH_POLICY=test_allowlist
+   AUTO_SYNC_MINUTES=0
    DRAFT_PROVIDER=openai
-   OPENAI_API_KEY=your-openai-key
+   OPENAI_API_KEY=paste-your-openai-key
    ```
-3. `docker compose up`. The top bar now says **Live mode** and **Operator-approved sending**.
-4. **Settings → Connect with X**, sign in as the account messages should come **from**.
-5. **Settings → "Who is writing, and why?"**: your sender name, one true line about why you reach out, tick the 30-day history box, Save.
-6. **Discover:** search your segment (e.g. `embodied AI, robot learning`) or start from accounts you already rate.
-7. **Draft for top matches → Review.** Read each draft against the person's posts; edit, Rewrite, Skip or Do not contact.
-8. **Approve and queue** the ones you want sent. They go out from your account one at a time, 2 minutes apart, at most 10 a day.
-9. **Activity:** watch them send; replies appear under **Needs attention** (checked every 3 hours, or **Sync all now**).
+   - `OUTREACH_POLICY=test_allowlist`: only accounts on your test list can be messaged. Right now that is nobody.
+   - `AUTO_SYNC_MINUTES=0`: no background reply checks while testing (they cost X credits). You'll use the "Sync all now" button instead.
+3. Start again:
+   ```
+   docker compose up
+   ```
+4. Open http://127.0.0.1:8000 and sign in. The top bar must say **Live mode**. If it still says "Fixture mode", `.env` wasn't saved or the app wasn't restarted.
 
-Every message is sent only after you approve its exact text. To try the whole flow on a second account you control first, without any risk of messaging anyone else, see **"Test mode: message only your own accounts"** below.
+#### 3.3 Connect your sending account
+
+1. Go to **Settings** and click **Connect with X** (under "Sender connection"). This button only appears in live mode.
+2. X asks you to approve the app. Sign in as your **sending** account, **not** the second one, and approve.
+3. Back in the app, Settings shows your handle as **Authorized**.
+
+The top bar still says **"Test list only"**. That is correct: nobody can be messaged until you add your second account to the test list.
+
+#### 3.4 Say who is writing, and why
+
+In **Settings → "Who is writing, and why?"**:
+
+1. **Sender name:** how messages introduce you, e.g. `Archit from GenAI Fund`. The default "Prototype operator" would end up in your message.
+2. **Purpose of contact:** one true line about why you are reaching out, e.g. `I'm exploring early-stage AI and robotics builders for GenAI Fund and would love to hear what you're working on.`
+3. Tick **"I understand that X history is limited to 30 days"**. The send queue waits until this is ticked.
+4. Click **Save sender details**.
+
+How the message is put together: the AI writes the whole DM itself. Your purpose line says why **you** are writing and is the same for everyone. The personal part says why you are writing to **this person** and comes from their own posts:
+
+> "Hi Sam, **I saw you're testing a tidewater gripper on low-cost robot arms** *(from their post)*. **I'm Archit from GenAI Fund and I talk to early robotics builders** *(your purpose)*. How is the grip holding up so far? Reply STOP to opt out."
+
+Do this step before 3.5: changing the sender name or purpose later deliberately cancels earlier test consent, and you would have to record it again.
+
+#### 3.5 Put your second account on the test list
+
+1. Make your two accounts **follow each other** on X.
+2. The test list needs the second account's **numeric ID**, not its @handle. With the app running, open a second terminal in the same folder and run (one X profile read, about USD 0.01):
+   ```
+   docker compose exec app python -m scripts.x_user_id @your_second_handle
+   ```
+   It prints the ID and the exact line to add.
+3. Put that line in `.env`, save, and restart (`Ctrl+C`, then `docker compose up`):
+   ```
+   TEST_RECIPIENT_IDS=1234567890123456789
+   ```
+4. In **Settings → Register a test recipient**:
+   - X handle: your second account's handle
+   - Consent reference: `My own second account, controlled by me`
+   - Tick **"I control this recipient account"** and click **Record test consent** (one X profile read, about USD 0.01).
+
+#### 3.6 Post a test post from the second account
+
+Logged in to X as your **second** account, post exactly:
+
+> I'm testing a tidewater gripper on low-cost robot arms this week.
+
+- "tidewater gripper" is a rare phrase, so your search finds only this post, and the search costs almost nothing.
+- "I'm testing" (or building / researching / developing) gives the post enough evidence for the app to draft. A bare mention scores too low.
+
+#### 3.7 Search
+
+1. Go to **Discover**. Leave **Role signals** and **Location term** empty.
+2. In **Topics** type `tidewater gripper` and click **Find relevant people**.
+3. Your second account appears with a score, and the AI's judgment: a **fit** (e.g. strong / builder), a **reason**, and your post **quoted word for word**. This is the first X search and the first AI call.
+
+If something looks wrong:
+
+- **"No matching public evidence"**: X can take 10 to 15 minutes to make a new post searchable. Wait and search again.
+- **"AI fit judging returned nothing usable" / "was unavailable"**: the AI call failed. Open **Settings → AI usage**: the newest row shows the error code. `HTTP_401` means the key was refused: check `OPENAI_API_KEY` in `.env` (and, if you run without Docker, that no old key is set in your system environment).
+
+#### 3.8 Draft and review
+
+1. Click **Draft for top matches**. You land on **Review** with one card for your second account.
+2. Read the draft against the post shown above it. It should mention the gripper post, say who is writing and why, ask one question, and end with a STOP line. Above the text box, "Draft relies on" shows the exact quote the AI used.
+3. Optional: edit the text, or type a note such as `shorter` and click **Rewrite with gpt-6.1-terra** for a new version.
+4. If the card says **"This person cannot be queued: consent required"**, you changed the sender name or purpose after recording consent: repeat step 3.5.4.
+
+#### 3.9 Send
+
+Click **Approve and queue**. This approves exactly the text in the box and sends a **real DM** from your sending account to your second account within about 30 seconds.
+
+Open **Activity**: the status turns **sent**. If it says "Queued" with a hold reason instead, the reason is shown in plain words (for example the 30-day history tick from 3.4).
+
+#### 3.10 Find the message and reply
+
+1. Log in to X as your **second** account and open **Chat**.
+2. If the conversation isn't in the list, open **Requests**. Messages from accounts the recipient doesn't follow land there. Following back helps future messages arrive in the main list.
+3. Open the message and reply, e.g. *"Thanks, happy to chat."*
+
+#### 3.11 Sync the reply
+
+In the app go to **Activity** and click **Sync all now**. The row moves to **Needs attention**, and the person's page shows both messages. **The live test is complete.**
+
+---
+
+## Step 4: real outreach (what the app is for)
+
+Do this only after Step 3 worked, and only once your organisation has decided to run this outreach from its own account.
+
+#### 4.1 Switch the send rule
+
+1. In `.env` set:
+   ```
+   OUTREACH_POLICY=operator_approved
+   ```
+2. Choose the pace (these are the defaults):
+   ```
+   DAILY_SEND_LIMIT=10
+   SEND_MIN_GAP_SECONDS=120
+   AUTO_SYNC_MINUTES=180
+   ```
+   `AUTO_SYNC_MINUTES` checks replies automatically for 14 days after each send, at about USD 0.01 per conversation per check (about USD 1.12 per conversation at 180). Use 720 to spend less, or 0 to check only with "Sync all now".
+3. Restart (`Ctrl+C`, then `docker compose up`). The top bar and Settings now say **Operator-approved sending**.
+
+What changes: anyone the app finds can be messaged **once you approve the exact text**. What stays enforced: your approval of every single message; nobody ever gets a second first message; the do-not-contact list and STOP replies; the pause button; the daily limit, the gap between sends and the budget cap (`X_BUDGET_USD`); a fresh re-read of the quoted posts before each send.
+
+#### 4.2 Find the people you want to reach
+
+On **Discover**, either:
+
+- **Describe the segment:** one to five topics, e.g. `embodied AI, robot learning, manipulation`. Optionally add role signals (`founder, researcher`) or a location term (`Singapore`). Location is a search word, not a verified place.
+- **Or start from accounts you already rate:** under "Or start from accounts you already rate", enter one to three handles of builders you like and click **Find similar people**. The AI describes what they work on and searches for people doing similar work; the seeds themselves are left out.
+
+Each person gets a fit (strong, possible, weak), a role, a reason and quotes from their own posts. News and company accounts are marked "not a person". Click a name to see all their evidence.
+
+#### 4.3 Draft, review, approve
+
+1. Click **Draft for top matches**. The AI drafts a personal DM for every strong or possible match (up to 10). Nothing is sent.
+2. On **Review**, go through each card:
+   - Check the reason and the quotes against the source posts.
+   - **Approve and queue** the ones you'd send as written (or after editing the text).
+   - **Rewrite** with a note if the tone or focus is off.
+   - **Skip** people you don't want to contact now; **Do not contact** to block someone permanently.
+
+#### 4.4 Let it send
+
+Approved messages go out one at a time, `SEND_MIN_GAP_SECONDS` apart, up to `DAILY_SEND_LIMIT` a day, while the app is running. **Activity** shows each message's place in the queue and why it's waiting, if it is. **Settings → Pause new sends** stops everything instantly.
+
+#### 4.5 Follow up on replies
+
+- Replies are checked automatically (every `AUTO_SYNC_MINUTES`) or with **Activity → Sync all now**.
+- **Activity → Needs attention** lists new replies, messages X refused (e.g. the person accepts DMs only from people they follow) and anything uncertain.
+- Open a person's page to read the conversation, then **continue the conversation in X** itself. Click **Mark replies handled** when done.
+- A reply of **STOP** puts the person on the do-not-contact list automatically.
+- **Settings → AI usage** shows every AI call; the X spend estimate is next to the limits.
+
+To go back to testing: set `OUTREACH_POLICY=test_allowlist` and restart. Queued messages to people not on the test list leave the queue with a note; none are sent.
 
 ---
 
@@ -91,69 +265,11 @@ Click a section to open it.
 | Need | Details |
 |---|---|
 | X developer account with credits | Pay-per-use credits in the X Developer Console. About USD 5 covers testing and a demo comfortably. |
-| An X app with user sign-in | See "Create the X developer app". Permission "Read and write and Direct message". |
+| An X app with user sign-in | See Step 3.1. Permission "Read and write and Direct message". |
 | The X account messages are sent from | Connected inside the app; its token is stored encrypted. |
-| Optional, for test mode: a second X account you control | To try the real path without messaging anyone else. |
+| For testing: a second X account you control | Real test messages may only go to accounts you control or people who agreed. |
 | An AI key (recommended) | OpenAI (`gpt-6-luna`, backup and rewrites `gpt-6.1-terra`) or Google Gemini. Without one: keyword ranking and template drafts. |
 | Software | Git and Docker Desktop. Or Python 3.12 and PostgreSQL 16+ (see "Running without Docker"). |
-
-</details>
-
-<details>
-<summary><b>Create the X developer app (about 10 minutes, on X's site)</b></summary>
-
-In the [X Developer Console](https://developer.x.com), open your app:
-
-1. **Settings → User authentication settings → Set up** (or Edit):
-
-   | Field | Value |
-   |---|---|
-   | App permissions | **Read and write and Direct message** |
-   | Type of App | **Web App, Automated App or Bot** (confidential client) |
-   | Callback URI / Redirect URL | `http://127.0.0.1:8000/oauth/x/callback` |
-   | Website URL | any URL of yours |
-
-2. Save. Without "Direct message" permission the app can read but not send.
-3. **Keys and tokens → OAuth 2.0 Keys:** copy the **Client ID** and **Client Secret** into `.env`. You don't need the Bearer Token, Consumer Key or Access Token.
-4. Check the project has credits (Billing → Credits).
-
-</details>
-
-<details>
-<summary><b>Test mode: message only your own accounts (optional)</b></summary>
-
-Use this to try the real path on X without any risk of messaging someone else: only accounts on a test list, with recorded consent, can be messaged. Cost: about USD 0.10 to 0.20 of X, under one cent of AI.
-
-1. In `.env`, set `OUTREACH_POLICY=test_allowlist` and `AUTO_SYNC_MINUTES=0` (no background reply checks while testing), then restart. The top bar says **Test list only**.
-2. Use a second X account you control. Make the two accounts follow each other.
-3. **Settings → Register a test recipient:** the second account's handle, a note like "My own second account", tick "I control this recipient account", **Record test consent**. The first time, the app answers with that account's numeric X ID and the exact line to add, for example:
-   ```
-   TEST_RECIPIENT_IDS=1234567890123456789
-   ```
-4. Put that line in `.env`, restart (`Ctrl+C`, `docker compose up`), and **Record test consent** again. This time it is accepted.
-5. From the second account, post a rare phrase with a first-person line, e.g. *"I'm testing a tidewater gripper on low-cost robot arms this week."* ("I'm testing / building / researching" earns enough evidence to draft.)
-6. **Discover:** search the phrase, e.g. `tidewater gripper`. New posts can take 10 to 15 minutes to become searchable.
-7. **Draft for top matches → Review → Approve and queue.** Activity shows **sent** within about 30 seconds.
-8. On the second account open **Chat → Requests**, find the message and reply.
-9. **Activity → Sync all now.** The row moves to **Needs attention**. Done.
-
-**Back to real outreach:** set `OUTREACH_POLICY=operator_approved` (and `AUTO_SYNC_MINUTES=180`, or your choice) and restart. Queued messages always follow the current rule: switching to test mode takes messages to people not on the test list out of the queue with a note; none are sent.
-
-</details>
-
-<details>
-<summary><b>Who can be messaged, and what always applies</b></summary>
-
-`OUTREACH_POLICY` in `.env`:
-
-| Value | Who can be messaged |
-|---|---|
-| `operator_approved` (default) | Anyone the app finds on X, once you approve the exact text. |
-| `test_allowlist` | Only accounts in `TEST_RECIPIENT_IDS` with recorded consent. For testing. |
-
-Always enforced, under both: your approval of every message; no second first message to anyone; the do-not-contact list and STOP replies; the pause button; the daily limit, pacing and budget caps; a fresh re-read of the quoted posts before sending.
-
-Pace settings: `DAILY_SEND_LIMIT=10`, `SEND_MIN_GAP_SECONDS=120`, `AUTO_SYNC_MINUTES=180` (reply checks cost about USD 1.12 per conversation over 14 days at 180; use 720 to save, 0 to turn off).
 
 </details>
 
@@ -200,8 +316,8 @@ Every block shows its reason on screen.
 | Queue holding: **rate limited** | X asked to slow down | Wait; it retries after X's time (or 15 minutes) and keeps your approval |
 | Queue holding: **sending paused / disabled** | Pause button, or `SEND_ENABLED=false` | Settings → Resume, or set `SEND_ENABLED=true` |
 | Queue holding: **sender busy** | A previous send had an unknown outcome | Person page → Check uncertain outcome, or Freeze this contact |
-| **recipient not allowed** | Test mode is on and the person isn't in `TEST_RECIPIENT_IDS` | Expected in test mode; set `OUTREACH_POLICY=operator_approved` for real outreach |
-| **consent required** | Test mode, no valid consent (or purpose changed) | Settings → Register a test recipient again |
+| **recipient not allowed** | Test-list rule, person not in `TEST_RECIPIENT_IDS` | Expected while testing |
+| **consent required** | Test-list rule, no valid consent (or purpose changed) | Settings → Register a test recipient again |
 | **do not contact** | You blocked them, or they replied STOP | None; permanent |
 | **already contacted** | You messaged them before (here or on X) | None; continue in X |
 | **approval stale** | Text changed in another tab | Refresh, approve again |
@@ -279,7 +395,7 @@ Diagrams: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `APP_ORIGIN` / `X_CALLBACK_URL` | 127.0.0.1:8000 | Must match the browser address and the X app. |
 | `X_CLIENT_ID` / `X_CLIENT_SECRET` | empty | Your X app's OAuth 2.0 keys. |
 | `SEND_ENABLED` | true after setup | Master switch for sending. |
-| `OUTREACH_POLICY` | operator_approved | Who can be messaged: anyone you approve, or `test_allowlist` for testing. |
+| `OUTREACH_POLICY` | test_allowlist | Who can be messaged. |
 | `TEST_RECIPIENT_IDS` | empty | Numeric X IDs allowed under the test-list rule, comma separated. |
 | `DRAFT_PROVIDER` | template | `openai`, `gemini`, `anthropic` (untested) or `template` (no AI). |
 | `OPENAI_API_KEY` | empty | Your OpenAI key. |
@@ -307,6 +423,7 @@ Sender name, purpose, the history tick, the connected account and test consent a
 - Newest published image: `docker compose pull`, then `docker compose up`.
 - Run your own local code changes instead: `docker compose up --build`.
 - Change your password: `docker compose run --rm setup python -m scripts.bootstrap --reset-password`, then restart.
+- Find an account's numeric X ID (live mode, app running): `docker compose exec app python -m scripts.x_user_id @handle`.
 - Port 8000 busy: change `"127.0.0.1:8000:8000"` in `compose.yaml` (e.g. to `"127.0.0.1:8080:8000"`) and set `APP_ORIGIN=http://127.0.0.1:8080` and `X_CALLBACK_URL=http://127.0.0.1:8080/oauth/x/callback` in `.env`.
 - Linux, if `.env` can't be written: `docker compose run --rm --user "$(id -u):$(id -g)" setup`.
 
@@ -328,6 +445,7 @@ createdb -U <your postgres user> outreach
 - For live mode use a separate database (e.g. `outreach_live`) and point `DATABASE_URL` at it.
 - Keep `--no-access-log` (stops X sign-in codes from reaching logs). Run one app process.
 - If `OPENAI_API_KEY` or `GEMINI_API_KEY` is also set in your system environment, it overrides `.env`; remove it and restart from a new terminal.
+- Numeric X ID for the test list: `.venv\Scripts\python.exe -m scripts.x_user_id @handle`.
 
 </details>
 
