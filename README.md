@@ -129,11 +129,11 @@ In the [X Developer Console](https://developer.x.com), open your app:
 Do this once before any real outreach. Under the test-list rule nobody else can be messaged. Cost: about USD 0.10 to 0.20 of X, under one cent of AI.
 
 1. Use a second X account you control. Make the two accounts follow each other.
-2. Find its **numeric** X ID (not the @handle) with any X user-ID lookup tool. Add it to `.env` and restart:
+2. **Settings → Register a test recipient:** the second account's handle, a note like "My own second account", tick "I control this recipient account", **Record test consent**. The first time, the app answers with that account's numeric X ID and the exact line to add, for example:
    ```
    TEST_RECIPIENT_IDS=1234567890123456789
    ```
-3. **Settings → Register a test recipient:** the handle, a note like "My own second account", tick "I control this recipient account", **Record test consent**.
+3. Put that line in `.env`, restart (`Ctrl+C`, `docker compose up`), and **Record test consent** again. This time it is accepted.
 4. From the second account, post a rare phrase with a first-person line, e.g. *"I'm testing a tidewater gripper on low-cost robot arms this week."* ("I'm testing / building / researching" earns enough evidence to draft.)
 5. **Discover:** search the phrase, e.g. `tidewater gripper`. New posts can take 10 to 15 minutes to become searchable.
 6. **Draft for top matches → Review → Approve and queue.** Activity shows **sent** within about 30 seconds.
@@ -335,7 +335,7 @@ createdb -U <your postgres user> outreach
 <details>
 <summary><b>Tests</b></summary>
 
-251 automated tests, including real-database concurrency tests and two browser tests. They use synthetic data and fake AI and X servers, never call real services, and strip real keys from their environment. Needs the Python setup above.
+257 automated tests, including real-database concurrency tests and two browser tests. They use synthetic data and fake AI and X servers, never call real services, and strip real keys from their environment. Needs the Python setup above.
 
 ```
 $env:TEST_DATABASE_URL="postgresql+psycopg://USER:PASSWORD@127.0.0.1:5432/outreach_test"
