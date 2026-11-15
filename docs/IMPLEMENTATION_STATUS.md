@@ -24,6 +24,6 @@ Last updated 2026-11-15. Statuses: verified on synthetic data (fixture), verifie
 | Operator-approved sending on real X | Not run | The live test kept the test-list-only rule |
 | Demo recording | Not done | To be recorded by the candidate |
 
-257 automated tests pass, including two browser workflows. Lint and dependency checks pass.
+251 automated tests pass, including two browser workflows. Lint and dependency checks pass.
 
 Real services used: Google Gemini on synthetic posts (2026-11-14); X and OpenAI gpt-6-luna in one controlled live test (2026-11-15).
