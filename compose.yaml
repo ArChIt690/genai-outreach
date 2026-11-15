@@ -14,7 +14,10 @@ services:
       retries: 20
   app:
     build: .
-    env_file: .env
+    image: genai-outreach:local
+    env_file:
+      - path: .env
+        required: false
     environment:
       DATABASE_URL: postgresql+psycopg://outreach:outreach@db:5432/outreach
     ports:
@@ -27,5 +30,17 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+  # One-time setup: asks for your operator password and writes .env into this folder.
+  # Run with: docker compose run --rm setup
+  setup:
+    build: .
+    image: genai-outreach:local
+    profiles: ["setup"]
+    volumes:
+      - .:/work
+    working_dir: /work
+    environment:
+      PYTHONPATH: /app
+    command: ["python", "-m", "scripts.bootstrap", "--fixture-demo"]
 volumes:
   outreach_db:

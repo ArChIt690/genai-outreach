@@ -14,7 +14,7 @@ A tool for finding AI and robotics builders on X and starting warm, personal con
 
 1. [What it does](#1-what-it-does)
 2. [What you need](#2-what-you-need)
-3. [Set up (about 10 minutes)](#3-set-up-about-10-minutes)
+3. [Set up (about 5 minutes)](#3-set-up-about-5-minutes)
 4. [Try it on synthetic data first](#4-try-it-on-synthetic-data-first)
 5. [Connect your own X account and AI key](#5-connect-your-own-x-account-and-ai-key)
 6. [Send one safe test message](#6-send-one-safe-test-message)
@@ -57,7 +57,7 @@ How each part of the brief is covered:
 
 ## 2. What you need
 
-**To try it on synthetic data:** only Docker Desktop and Python 3.12. No accounts, no keys, no cost.
+**To try it on synthetic data:** only Git and Docker Desktop. No Python, accounts, keys or cost.
 
 **To use it on real X:**
 
@@ -68,42 +68,40 @@ How each part of the brief is covered:
 | The X account messages are sent from | You connect it inside the app. It stays yours; the app stores its token encrypted. |
 | For testing: a second X account you control | Real test messages may only go to accounts you control or people who agreed. |
 | An AI key (recommended) | OpenAI (default models `gpt-6-luna`, backup `gpt-6.1-terra`) or Google Gemini. Without one the app still works, with keyword ranking and a fill-in template instead of AI drafts. |
-| Software | Docker Desktop and Python 3.12. Or, without Docker: Python 3.12 and PostgreSQL 16 or newer (tested on 18). |
+| Software | Git and Docker Desktop. Or, without Docker: Python 3.12 and PostgreSQL 16 or newer (tested on 18). |
 
 **Nothing from the author's setup is included.** No password, keys, accounts or data are in this repository. You create your own as you go.
 
 ---
 
-## 3. Set up (about 10 minutes)
+## 3. Set up (about 5 minutes)
 
 ### Option A: Docker (recommended)
 
-Tested on 15 Nov 2026: build and start took about 75 seconds.
+Three commands. Docker Desktop must be running. Tested on 15 Nov 2026 from a clean copy: the first build took about 75 seconds, later starts about 5 seconds.
 
-1. **Get the code** (1 minute)
+1. **Get the code**
    ```
    git clone https://github.com/ArChIt690/genai-outreach
    cd genai-outreach
    ```
-2. **Install the setup helper** (2 to 3 minutes). Python is used once, to create your settings file and password.
+2. **Choose your password** (the first run also builds the app, 1 to 3 minutes)
    ```
-   python -m venv .venv
-   .venv\Scripts\python.exe -m pip install -r requirements.lock
+   docker compose run --rm setup
    ```
-   `python` must be 3.12 or newer (on Windows, `py -3.12 -m venv .venv` picks it if several are installed). On macOS or Linux, use `.venv/bin/python` instead of `.venv\Scripts\python.exe` in every command.
-3. **Create your settings and choose your password** (1 minute)
+   It asks you to choose an operator password (at least 12 characters, typed twice; nothing is shown as you type) and writes a `.env` file in this folder with a fresh encryption key. Your password is stored only as a hash. `.env` is ignored by git; never commit it. The command refuses to overwrite an existing `.env`.
+3. **Start**
    ```
-   .venv\Scripts\python.exe -m scripts.bootstrap --fixture-demo
+   docker compose up
    ```
-   It asks you to choose an operator password (at least 12 characters) and writes a `.env` file with a fresh encryption key. Your password is stored only as a hash. `.env` is ignored by git; never commit it.
-4. **Start** (2 to 5 minutes the first time)
-   ```
-   docker compose up --build
-   ```
-   This starts PostgreSQL and the app, and sets up the database.
-5. **Open** http://127.0.0.1:8000 and sign in with your password.
+   This starts PostgreSQL and the app and sets up the database. Wait for "Application startup complete".
+4. **Open** http://127.0.0.1:8000 and sign in with your password.
 
-To stop: `Ctrl+C`, or `docker compose down`. To start again later: `docker compose up`.
+To stop: `Ctrl+C`, or `docker compose down`. To start again later: `docker compose up`. After pulling new code: `docker compose up --build`.
+
+To change your password later: `docker compose run --rm setup python -m scripts.bootstrap --reset-password`, then restart.
+
+On Linux, if `.env` can't be written, run the setup as yourself: `docker compose run --rm --user "$(id -u):$(id -g)" setup`.
 
 If port 8000 is busy on your computer, change `"127.0.0.1:8000:8000"` in `compose.yaml` to another port, for example `"127.0.0.1:8080:8000"`, and set `APP_ORIGIN=http://127.0.0.1:8080` and `X_CALLBACK_URL=http://127.0.0.1:8080/oauth/x/callback` in `.env`.
 
@@ -111,7 +109,12 @@ If port 8000 is busy on your computer, change `"127.0.0.1:8000:8000"` in `compos
 
 Use this if you already run PostgreSQL. This is the path the author used during development and the live test.
 
-1. Get the code and install, as in steps 1 and 2 above.
+1. Get the code (step 1 above), then install the Python packages:
+   ```
+   python -m venv .venv
+   .venv\Scripts\python.exe -m pip install -r requirements.lock
+   ```
+   `python` must be 3.12 or newer (on Windows, `py -3.12 -m venv .venv` picks it if several are installed). On macOS or Linux, use `.venv/bin/python` instead of `.venv\Scripts\python.exe` in every command. Tested: about 80 seconds.
 2. Create an empty database:
    ```
    createdb -U <your postgres user> outreach
@@ -402,7 +405,7 @@ Sender name, purpose, the history tick, the connected account and test consent a
 
 ## 16. Tests
 
-251 automated tests, including real-database concurrency tests and two browser tests. They use synthetic data and fake AI and X servers; they never call real services and strip real keys from their environment.
+251 automated tests, including real-database concurrency tests and two browser tests. Running them needs the Python setup from Option B and a PostgreSQL database. They use synthetic data and fake AI and X servers; they never call real services and strip real keys from their environment.
 
 ```
 $env:TEST_DATABASE_URL="postgresql+psycopg://USER:PASSWORD@127.0.0.1:5432/outreach_test"

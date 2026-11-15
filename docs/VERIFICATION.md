@@ -99,7 +99,7 @@ A fresh virtual environment installed the exact lock file from locally cached wh
 
 On 2026-11-15 both README setup paths were repeated from a clean copy of the repository (fixture mode, no X or AI calls):
 
-- Docker: `docker compose up --build` built and started the app and database in about 75 seconds; migrations ran automatically; sign-in, a search, batch drafting, approve and queue, the automatic send (after ticking the history box) and reply sync all worked. Publishing the database port was removed from compose.yaml because it clashed with a local PostgreSQL.
+- Docker: `docker compose run --rm setup` created `.env` and the password hash inside Docker (no Python on the host), then `docker compose up` started the app in about 5 seconds and sign-in with that password worked. In the earlier trial `docker compose up --build` built and started the app and database in about 75 seconds; migrations ran automatically; sign-in, a search, batch drafting, approve and queue, the automatic send (after ticking the history box) and reply sync all worked. Publishing the database port was removed from compose.yaml because it clashed with a local PostgreSQL.
 - Without Docker: a plain `pip install -r requirements.lock` into a new environment took 83 seconds; `alembic upgrade head` created all tables on an empty database; the app started, sign-in and a synthetic search worked.
 
 Neither trial includes creating an X developer app, its approval or buying credits; those depend on X.
