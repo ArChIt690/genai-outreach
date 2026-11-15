@@ -10,11 +10,11 @@ Find AI and robotics builders on X and start warm, personal conversations with t
 
 ---
 
-## Quick start (about 15 minutes)
+## Quick start
 
 You need **Git** and **Docker Desktop** (running). No Python, accounts or keys for the first two steps. Nothing from the author's setup is included: you choose your own password and use your own accounts and keys.
 
-### Step 1: install and sign in (about 5 minutes)
+### Step 1: install and sign in
 
 ```
 git clone https://github.com/ArChIt690/genai-outreach
@@ -28,11 +28,11 @@ docker compose up
 
 Open **http://127.0.0.1:8000** and sign in with your password.
 
-### Step 2: try it on synthetic data (about 5 minutes)
+### Step 2: try it on synthetic data
 
 The app starts in **synthetic mode**: five made-up people and a pretend X. Nothing reaches X; a yellow banner says so on every page.
 
-1. Open `.env` in any text editor (Windows: `notepad .env`, macOS: `open -e .env`) and change:
+1. Open `.env` in any text editor and change:
    ```
    OUTREACH_POLICY=operator_approved
    ```
@@ -388,4 +388,3 @@ docker buildx build --platform linux/amd64,linux/arm64 -t archit690/genai-outrea
 | [docs/COSTS.md](docs/COSTS.md) | Prices and cost estimates |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Design choices and why |
 | [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) | Status of each part |
-| [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | Demo outline |
