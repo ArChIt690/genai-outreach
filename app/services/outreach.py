@@ -41,9 +41,20 @@ def registration(rt, handle, reference, controlled):
         raise DomainError("CONSENT_REQUIRED", "For a recipient you do not control, provide an explicit on-X consent reference.", 400)
     profile = rt.read("user", handle.lstrip("@"))
     recipient = str(profile["id"])
-    allowed = rt.settings.allowed_ids if rt.settings.app_mode == "live" else {"fixture_test"}
-    if recipient not in allowed or recipient == account.x_id:
-        raise DomainError("RECIPIENT_NOT_ALLOWED", "This account is not in the deployment's test allowlist.")
+    if recipient == account.x_id:
+        raise DomainError("RECIPIENT_NOT_ALLOWED",
+                          "This is the connected sending account. Register a different account you control.")
+    if rt.settings.app_mode != "live":
+        if recipient != "fixture_test":
+            raise DomainError("RECIPIENT_NOT_ALLOWED",
+                              "In synthetic mode only the synthetic account test_recipient can be registered.")
+    elif recipient not in rt.settings.allowed_ids:
+        handle_shown = str(profile.get("username") or handle.lstrip("@"))
+        listed = [x.strip() for x in rt.settings.test_recipient_ids.split(",") if x.strip()]
+        raise DomainError("RECIPIENT_NOT_ALLOWED",
+                          f"@{handle_shown} has the X ID {recipient}, which is not on the test list yet. "
+                          f"In .env set TEST_RECIPIENT_IDS={','.join(listed + [recipient])}, "
+                          "restart the app, then register again.")
     with rt.factory.begin() as db:
         w = workspace_lock(db)
         person = upsert_registered(db, profile)
