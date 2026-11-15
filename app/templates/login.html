@@ -1,7 +1,7 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Sign in | Outreach workbench</title><link rel="stylesheet" href="/static/app.css"></head>
+<title>Sign in | Outreach workbench</title><link rel="icon" href="/static/logo.png" type="image/png"><link rel="stylesheet" href="/static/app.css"></head>
 <body class="login-page"><main class="login-panel">
-<span class="brandmark">g</span><p class="muted">GenAI Fund assessment prototype</p><h1>A considered first conversation.</h1>
+<img class="brandmark" src="/static/logo.png" alt="GenAI Fund"><p class="muted">GenAI Fund assessment prototype</p><h1>A considered first conversation.</h1>
 <p>Sign in to find relevant people, inspect the evidence and review every message before it leaves.</p>
 {% if configured %}<form action="/login" method="post"><input type="hidden" name="csrf" value="{{ csrf }}">
 <label for="password">Operator password</label><input id="password" name="password" type="password" autocomplete="current-password" required>

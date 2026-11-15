@@ -3,10 +3,10 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}Outreach workbench{% endblock %} | GenAI Fund prototype</title>
-<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js" defer></script></head>
+<link rel="icon" href="/static/logo.png" type="image/png"><link rel="stylesheet" href="/static/app.css"><script src="/static/app.js" defer></script></head>
 <body><a class="skip" href="#main">Skip to content</a>
 <aside class="sidebar">
-  <a class="brand" href="/discover"><span class="brandmark" aria-hidden="true">g</span><span>GenAI Fund<small>Outreach workbench</small></span></a>
+  <a class="brand" href="/discover"><img class="brandmark" src="/static/logo.png" alt="" aria-hidden="true"><span>GenAI Fund<small>Outreach workbench</small></span></a>
   <nav aria-label="Main navigation">
     <a href="/discover" {% if request.url.path == '/discover' %}aria-current="page"{% endif %}>Discover people<span>Find the evidence</span></a>
     <a href="/review" {% if request.url.path == '/review' %}aria-current="page"{% endif %}>Review<span>{{ pending_review }} waiting for approval</span></a>

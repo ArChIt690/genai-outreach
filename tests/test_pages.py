@@ -262,3 +262,14 @@ def test_new_actions_require_csrf(client, rt):
         assert client.post(path, data={"version": "1", "csrf": client.csrf},
                            headers={"origin": "https://attacker.example"}).status_code == 403, path
     assert outreach(rt, oid).queued_at is None and outreach(rt, oid).skipped is False
+
+
+def test_logo_is_shown_in_the_sidebar_on_sign_in_and_as_the_tab_icon(client):
+    page = client.get("/discover").text
+    assert '<img class="brandmark" src="/static/logo.png"' in page
+    assert '<link rel="icon" href="/static/logo.png"' in page
+    login = client.get("/login").text
+    assert 'src="/static/logo.png"' in login and '<link rel="icon" href="/static/logo.png"' in login
+    logo = client.get("/static/logo.png")
+    assert logo.status_code == 200 and logo.headers["content-type"] == "image/png"
+    assert logo.content.startswith(b"\x89PNG")
