@@ -78,14 +78,14 @@ How each part of the brief is covered:
 
 ### Option A: Docker (recommended)
 
-Three commands. Docker Desktop must be running. Tested on 15 Nov 2026 from a clean copy: the first build took about 75 seconds, later starts about 5 seconds.
+Three commands. Docker Desktop must be running. The app image is published on Docker Hub as [archit690/genai-outreach](https://hub.docker.com/r/archit690/genai-outreach) for Intel/AMD and Apple silicon, so nothing is built on your computer. Tested on 15 Nov 2026 from a clean folder: the image downloaded, setup and start each took about 5 seconds after that.
 
 1. **Get the code**
    ```
    git clone https://github.com/ArChIt690/genai-outreach
    cd genai-outreach
    ```
-2. **Choose your password** (the first run also builds the app, 1 to 3 minutes)
+2. **Choose your password** (the first run also downloads the app image, about 140 MB)
    ```
    docker compose run --rm setup
    ```
@@ -97,13 +97,19 @@ Three commands. Docker Desktop must be running. Tested on 15 Nov 2026 from a cle
    This starts PostgreSQL and the app and sets up the database. Wait for "Application startup complete".
 4. **Open** http://127.0.0.1:8000 and sign in with your password.
 
-To stop: `Ctrl+C`, or `docker compose down`. To start again later: `docker compose up`. After pulling new code: `docker compose up --build`.
+To stop: `Ctrl+C`, or `docker compose down`. To start again later: `docker compose up`. To get the newest published image: `docker compose pull`, then `docker compose up`. To run your own local changes instead of the published image: `docker compose up --build`.
 
 To change your password later: `docker compose run --rm setup python -m scripts.bootstrap --reset-password`, then restart.
 
 On Linux, if `.env` can't be written, run the setup as yourself: `docker compose run --rm --user "$(id -u):$(id -g)" setup`.
 
 If port 8000 is busy on your computer, change `"127.0.0.1:8000:8000"` in `compose.yaml` to another port, for example `"127.0.0.1:8080:8000"`, and set `APP_ORIGIN=http://127.0.0.1:8080` and `X_CALLBACK_URL=http://127.0.0.1:8080/oauth/x/callback` in `.env`.
+
+**For the maintainer: publishing a new image** after code changes (needs `docker login` as the image owner):
+```
+docker buildx build --platform linux/amd64,linux/arm64 -t archit690/genai-outreach:latest --push .
+```
+Build from a clean checkout of committed code, so untracked local files never end up in the image.
 
 ### Option B: without Docker
 
