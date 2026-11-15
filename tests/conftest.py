@@ -43,6 +43,7 @@ def rt(database):
         tables = ", ".join('"' + t.name + '"' for t in reversed(Base.metadata.sorted_tables))
         connection.execute(text("TRUNCATE " + tables + " CASCADE"))
     settings = Settings(_env_file=None, database_url=url, send_enabled=True, worker_enabled=False,
+                        outreach_policy="test_allowlist",
                         history_limit_acknowledged=True, token_encryption_key=Fernet.generate_key().decode(),
                         operator_password_hash=password_hash(TEST_PASSWORD))
     initialize_workspace(factory, "fixture")

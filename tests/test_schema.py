@@ -17,7 +17,7 @@ def load_migration():
 
 def test_new_settings_defaults():
     s = Settings(_env_file=None)
-    assert (s.outreach_policy, s.draft_provider) == ("test_allowlist", "template")
+    assert (s.outreach_policy, s.draft_provider) == ("operator_approved", "template")
     assert (s.daily_send_limit, s.send_min_gap_seconds, s.auto_sync_minutes) == (10, 120, 180)
     assert (s.gemini_model, s.gemini_fallback_model) == ("gemini-2.5-flash", "gemini-flash-lite-latest")
     assert s.draft_limit_per_session == 40
@@ -52,3 +52,10 @@ def test_migration_0002_is_safe_to_repeat(database):
     calls = {c["name"] for c in found.get_columns("ai_calls")}
     assert {"kind", "provider", "model", "input_tokens", "output_tokens", "latency_ms", "outcome", "error",
             "created"} <= calls
+
+
+def test_real_outreach_is_the_default_everywhere():
+    from pathlib import Path
+    assert Settings(_env_file=None).outreach_policy == "operator_approved"
+    template = (Path(__file__).resolve().parent.parent / ".env.example").read_text(encoding="utf-8")
+    assert "OUTREACH_POLICY=operator_approved" in template.splitlines()

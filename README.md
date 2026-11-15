@@ -32,19 +32,14 @@ Open **http://127.0.0.1:8000** and sign in with your password.
 
 The app starts in **synthetic mode**: five made-up people and a pretend X. Nothing reaches X; a yellow banner says so on every page.
 
-1. Open `.env` in any text editor and change:
-   ```
-   OUTREACH_POLICY=operator_approved
-   ```
-   Optional, to see the AI: also set `DRAFT_PROVIDER=openai` and `OPENAI_API_KEY=your-key` (only the made-up posts are sent). Without a key you get keyword ranking and a template draft.
-2. Restart: `Ctrl+C`, then `docker compose up`.
-3. **Settings:** fill in "Who is writing, and why?", **tick the 30-day history box**, Save. (The send queue waits until this box is ticked.)
-4. **Discover:** search `robotics, embodied AI`. Each person shows a fit, a reason and quotes.
-5. **Draft for top matches** → you land on **Review**. Read a draft, edit it or Rewrite it, then **Approve and queue**.
-6. **Activity:** the status turns **sent** within about 30 seconds.
-7. Open that person's page → type under "Synthetic recipient reply" → **Add fixture reply** → back in Activity click **Sync all now**. The row moves to **Needs attention**.
+1. Optional, to see the AI: open `.env` in any text editor, set `DRAFT_PROVIDER=openai` and `OPENAI_API_KEY=your-key` (only the made-up posts are sent), then restart (`Ctrl+C`, `docker compose up`). Without a key you get keyword ranking and a template draft.
+2. **Settings:** fill in "Who is writing, and why?", **tick the 30-day history box**, Save. (The send queue waits until this box is ticked.)
+3. **Discover:** search `robotics, embodied AI`. Each person shows a fit, a reason and quotes.
+4. **Draft for top matches** → you land on **Review**. Read a draft, edit it or Rewrite it, then **Approve and queue**.
+5. **Activity:** the status turns **sent** within about 30 seconds.
+6. Open that person's page → type under "Synthetic recipient reply" → **Add fixture reply** → back in Activity click **Sync all now**. The row moves to **Needs attention**.
 
-### Step 3: connect your real X account (about 5 minutes, once you have an X app)
+### Step 3: run real outreach (about 5 minutes, once you have an X app)
 
 Needs an X developer app with credits. How to create it: see **"Create the X developer app"** below.
 
@@ -54,17 +49,18 @@ Needs an X developer app with credits. How to create it: see **"Create the X dev
    APP_MODE=live
    X_CLIENT_ID=your-client-id
    X_CLIENT_SECRET=your-client-secret
-   OUTREACH_POLICY=test_allowlist
-   AUTO_SYNC_MINUTES=0
    DRAFT_PROVIDER=openai
    OPENAI_API_KEY=your-openai-key
    ```
-3. `docker compose up`. The top bar now says **Live mode**.
+3. `docker compose up`. The top bar now says **Live mode** and **Operator-approved sending**.
 4. **Settings → Connect with X**, sign in as the account messages should come **from**.
 5. **Settings → "Who is writing, and why?"**: your sender name, one true line about why you reach out, tick the 30-day history box, Save.
-6. Send one safe test message to a second account you control: see **"Send one safe test message"** below.
+6. **Discover:** search your segment (e.g. `embodied AI, robot learning`) or start from accounts you already rate.
+7. **Draft for top matches → Review.** Read each draft against the person's posts; edit, Rewrite, Skip or Do not contact.
+8. **Approve and queue** the ones you want sent. They go out from your account one at a time, 2 minutes apart, at most 10 a day.
+9. **Activity:** watch them send; replies appear under **Needs attention** (checked every 3 hours, or **Sync all now**).
 
-When that works and your organisation has decided to run outreach, see **"Switch from testing to real outreach"** below.
+Every message is sent only after you approve its exact text. To try the whole flow on a second account you control first, without any risk of messaging anyone else, see **"Test mode: message only your own accounts"** below.
 
 ---
 
@@ -97,7 +93,7 @@ Click a section to open it.
 | X developer account with credits | Pay-per-use credits in the X Developer Console. About USD 5 covers testing and a demo comfortably. |
 | An X app with user sign-in | See "Create the X developer app". Permission "Read and write and Direct message". |
 | The X account messages are sent from | Connected inside the app; its token is stored encrypted. |
-| For testing: a second X account you control | Real test messages may only go to accounts you control or people who agreed. |
+| Optional, for test mode: a second X account you control | To try the real path without messaging anyone else. |
 | An AI key (recommended) | OpenAI (`gpt-6-luna`, backup and rewrites `gpt-6.1-terra`) or Google Gemini. Without one: keyword ranking and template drafts. |
 | Software | Git and Docker Desktop. Or Python 3.12 and PostgreSQL 16+ (see "Running without Docker"). |
 
@@ -124,37 +120,40 @@ In the [X Developer Console](https://developer.x.com), open your app:
 </details>
 
 <details>
-<summary><b>Send one safe test message</b></summary>
+<summary><b>Test mode: message only your own accounts (optional)</b></summary>
 
-Do this once before any real outreach. Under the test-list rule nobody else can be messaged. Cost: about USD 0.10 to 0.20 of X, under one cent of AI.
+Use this to try the real path on X without any risk of messaging someone else: only accounts on a test list, with recorded consent, can be messaged. Cost: about USD 0.10 to 0.20 of X, under one cent of AI.
 
-1. Use a second X account you control. Make the two accounts follow each other.
-2. **Settings → Register a test recipient:** the second account's handle, a note like "My own second account", tick "I control this recipient account", **Record test consent**. The first time, the app answers with that account's numeric X ID and the exact line to add, for example:
+1. In `.env`, set `OUTREACH_POLICY=test_allowlist` and `AUTO_SYNC_MINUTES=0` (no background reply checks while testing), then restart. The top bar says **Test list only**.
+2. Use a second X account you control. Make the two accounts follow each other.
+3. **Settings → Register a test recipient:** the second account's handle, a note like "My own second account", tick "I control this recipient account", **Record test consent**. The first time, the app answers with that account's numeric X ID and the exact line to add, for example:
    ```
    TEST_RECIPIENT_IDS=1234567890123456789
    ```
-3. Put that line in `.env`, restart (`Ctrl+C`, `docker compose up`), and **Record test consent** again. This time it is accepted.
-4. From the second account, post a rare phrase with a first-person line, e.g. *"I'm testing a tidewater gripper on low-cost robot arms this week."* ("I'm testing / building / researching" earns enough evidence to draft.)
-5. **Discover:** search the phrase, e.g. `tidewater gripper`. New posts can take 10 to 15 minutes to become searchable.
-6. **Draft for top matches → Review → Approve and queue.** Activity shows **sent** within about 30 seconds.
-7. On the second account open **Chat → Requests**, find the message and reply.
-8. **Activity → Sync all now.** The row moves to **Needs attention**. Done.
+4. Put that line in `.env`, restart (`Ctrl+C`, `docker compose up`), and **Record test consent** again. This time it is accepted.
+5. From the second account, post a rare phrase with a first-person line, e.g. *"I'm testing a tidewater gripper on low-cost robot arms this week."* ("I'm testing / building / researching" earns enough evidence to draft.)
+6. **Discover:** search the phrase, e.g. `tidewater gripper`. New posts can take 10 to 15 minutes to become searchable.
+7. **Draft for top matches → Review → Approve and queue.** Activity shows **sent** within about 30 seconds.
+8. On the second account open **Chat → Requests**, find the message and reply.
+9. **Activity → Sync all now.** The row moves to **Needs attention**. Done.
+
+**Back to real outreach:** set `OUTREACH_POLICY=operator_approved` (and `AUTO_SYNC_MINUTES=180`, or your choice) and restart. Queued messages always follow the current rule: switching to test mode takes messages to people not on the test list out of the queue with a note; none are sent.
 
 </details>
 
 <details>
-<summary><b>Switch from testing to real outreach</b></summary>
+<summary><b>Who can be messaged, and what always applies</b></summary>
 
-Only once your organisation has decided to run this outreach from its own account, and after the safe test worked.
+`OUTREACH_POLICY` in `.env`:
 
-1. In `.env`: `OUTREACH_POLICY=operator_approved`
-2. Optional pace settings: `DAILY_SEND_LIMIT=10`, `SEND_MIN_GAP_SECONDS=120`, `AUTO_SYNC_MINUTES=180` (reply checks cost about USD 1.12 per conversation over 14 days at 180; use 720 to save, 0 to turn off).
-3. Restart. The top bar and Settings now say **Operator-approved sending**.
+| Value | Who can be messaged |
+|---|---|
+| `operator_approved` (default) | Anyone the app finds on X, once you approve the exact text. |
+| `test_allowlist` | Only accounts in `TEST_RECIPIENT_IDS` with recorded consent. For testing. |
 
-What changes: any discovered person can be messaged once you approve the exact text.
-What stays enforced: your approval of every message; no second first message; the do-not-contact list and STOP replies; pause; daily limit, pacing and budget caps; a fresh re-read of the quoted posts before sending.
+Always enforced, under both: your approval of every message; no second first message to anyone; the do-not-contact list and STOP replies; the pause button; the daily limit, pacing and budget caps; a fresh re-read of the quoted posts before sending.
 
-To go back: `OUTREACH_POLICY=test_allowlist` and restart. Queued messages to people not on the test list leave the queue with a note; none are sent.
+Pace settings: `DAILY_SEND_LIMIT=10`, `SEND_MIN_GAP_SECONDS=120`, `AUTO_SYNC_MINUTES=180` (reply checks cost about USD 1.12 per conversation over 14 days at 180; use 720 to save, 0 to turn off).
 
 </details>
 
@@ -201,8 +200,8 @@ Every block shows its reason on screen.
 | Queue holding: **rate limited** | X asked to slow down | Wait; it retries after X's time (or 15 minutes) and keeps your approval |
 | Queue holding: **sending paused / disabled** | Pause button, or `SEND_ENABLED=false` | Settings → Resume, or set `SEND_ENABLED=true` |
 | Queue holding: **sender busy** | A previous send had an unknown outcome | Person page → Check uncertain outcome, or Freeze this contact |
-| **recipient not allowed** | Test-list rule, person not in `TEST_RECIPIENT_IDS` | Expected while testing |
-| **consent required** | Test-list rule, no valid consent (or purpose changed) | Settings → Register a test recipient again |
+| **recipient not allowed** | Test mode is on and the person isn't in `TEST_RECIPIENT_IDS` | Expected in test mode; set `OUTREACH_POLICY=operator_approved` for real outreach |
+| **consent required** | Test mode, no valid consent (or purpose changed) | Settings → Register a test recipient again |
 | **do not contact** | You blocked them, or they replied STOP | None; permanent |
 | **already contacted** | You messaged them before (here or on X) | None; continue in X |
 | **approval stale** | Text changed in another tab | Refresh, approve again |
@@ -280,7 +279,7 @@ Diagrams: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `APP_ORIGIN` / `X_CALLBACK_URL` | 127.0.0.1:8000 | Must match the browser address and the X app. |
 | `X_CLIENT_ID` / `X_CLIENT_SECRET` | empty | Your X app's OAuth 2.0 keys. |
 | `SEND_ENABLED` | true after setup | Master switch for sending. |
-| `OUTREACH_POLICY` | test_allowlist | Who can be messaged. |
+| `OUTREACH_POLICY` | operator_approved | Who can be messaged: anyone you approve, or `test_allowlist` for testing. |
 | `TEST_RECIPIENT_IDS` | empty | Numeric X IDs allowed under the test-list rule, comma separated. |
 | `DRAFT_PROVIDER` | template | `openai`, `gemini`, `anthropic` (untested) or `template` (no AI). |
 | `OPENAI_API_KEY` | empty | Your OpenAI key. |
@@ -335,7 +334,7 @@ createdb -U <your postgres user> outreach
 <details>
 <summary><b>Tests</b></summary>
 
-257 automated tests, including real-database concurrency tests and two browser tests. They use synthetic data and fake AI and X servers, never call real services, and strip real keys from their environment. Needs the Python setup above.
+258 automated tests, including real-database concurrency tests and two browser tests. They use synthetic data and fake AI and X servers, never call real services, and strip real keys from their environment. Needs the Python setup above.
 
 ```
 $env:TEST_DATABASE_URL="postgresql+psycopg://USER:PASSWORD@127.0.0.1:5432/outreach_test"

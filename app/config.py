@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     queue_tick_seconds: int = 30
     auto_sync_minutes: int = 180
     worker_enabled: bool = True
-    outreach_policy: Literal["test_allowlist", "operator_approved"] = "test_allowlist"
+    outreach_policy: Literal["test_allowlist", "operator_approved"] = "operator_approved"
     draft_provider: Literal["template", "gemini", "openai", "anthropic"] = "template"
     draft_limit_per_session: int = 40
     ai_daily_call_limit: int = 200

@@ -5,7 +5,7 @@ Each line is a choice that was made and the reason for it.
 ## Product
 
 - AI does the reading and writing; a person approves every message. The brief asks for drafts "for us to review and approve", and messages go out from the fund's own account. A fully autonomous sender was rejected for that reason.
-- One setting, OUTREACH_POLICY, decides who can be messaged. The default, test_allowlist, allows only registered test accounts with recorded consent, so testing the tool can never reach a stranger. operator_approved lets an approved message go to any discovered person.
+- One setting, OUTREACH_POLICY, decides who can be messaged. The default, operator_approved, lets an approved message go to any discovered person, because the tool exists to run real outreach. test_allowlist allows only registered test accounts with recorded consent, so testing can never reach a stranger; the author's live test used it.
 - Approval covers the exact text on screen. Editing, regenerating or rewriting a draft removes the approval and takes the message out of the send queue.
 - No automatic send retries. An unknown outcome holds the sender and stops the queue until a person checks it. Avoiding a duplicate message matters more than availability.
 - No automated follow-ups. The first message is the tool's job; the conversation continues in X.
