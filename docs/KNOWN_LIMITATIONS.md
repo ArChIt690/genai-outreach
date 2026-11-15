@@ -4,7 +4,7 @@
 
 One controlled live test ran on 2026-11-15: real X sign-in, search, one DM to a second account controlled by the candidate, and a synced reply, with OpenAI gpt-6-luna judging and drafting. No outreach to anyone else has been performed, and operator-approved sending has not run on real X. Google Gemini was called for real on synthetic posts only.
 
-Docker Engine was not running on this machine. Native Windows Python/PostgreSQL execution and browser testing are verified. Docker files are provided; a full container build/start still needs verification.
+Both setup paths (Docker, and Python with PostgreSQL) were run from a clean copy in fixture mode on 2026-11-15. Docker was tested on Windows with Docker Desktop only.
 
 ## Product boundaries
 
@@ -50,6 +50,6 @@ Generation caches the current valid saved draft by evidence/profile/purpose/prov
 
 The one-page write-up is supplied as approximately 500 words of Markdown. Its final exported page layout still needs checking in the candidate's chosen editor. The timed demo script and synthetic screenshots are supplied; an actual live 3 to 5 minute recording must be made by the candidate.
 
-The native cached-wheel setup trial does not include external account provisioning or a cold Docker image download. No claim is made that these external prerequisites complete in under fifteen minutes.
+The setup trials do not include creating and approving an X developer app or buying credits. No claim is made that those external steps complete in under fifteen minutes.
 
 The dependency set emits a Starlette test-client deprecation warning for HTTPX. Tests pass; a future library update may require migrating test tooling to HTTPX2. The current initial migration snapshots this version's metadata; future schema changes need explicit new Alembic revisions.

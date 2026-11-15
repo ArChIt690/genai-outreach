@@ -15,6 +15,6 @@
 
 **Limits.** A cold DM usually lands in the recipient's message requests, and is refused if they accept messages only from people they follow. Search covers X's seven-day window. DM history covers thirty days. Seed accounts find similar people, not a seed's contacts. One operator and one sender. The daily limit is our caution, not a verified X quota.
 
-**Next steps.** A controlled live test on X with a consenting recipient; a first real OpenAI run; a cold setup trial on a reviewer's machine including Docker; then follow-up reminders and a seed option that reads who a seed interacts with.
+**Next steps.** Run operator-approved outreach on real X once the fund decides to, and tune the pace to the account's real DM limits; follow-up reminders; a seed option that reads who a seed interacts with; and moving batch drafting off the web request so large batches don't wait on one page load.
 
 **AI tool usage.** AI coding assistants wrote most of the code and tests under my direction: OpenAI Codex generated the first prototype, and Claude Code (Anthropic) added the AI judging and drafting, the review and send queue, the OpenAI provider and seed accounts, working test-first. I chose the design, set the safety rules, and reviewed the behaviour through the tests, the browser and a real model run. Inside the product, Gemini or OpenAI models judge fit and draft messages.

@@ -86,7 +86,7 @@ Two problems found and fixed during the run:
 | Reply sync and attention | fixture_verified | Pagination/failure/idempotency tests and browser |
 | Fresh locked dependency setup | fixture_verified | Isolated new virtual environment and database |
 | Compose configuration | implemented | CLI configuration validation passed with no secret resolution |
-| Docker image build and containers | not_run | Docker Engine was not running |
+| Docker image build and containers | fixture_verified | 2026-11-15: clean copy, built and started in about 75 s; sign-in, search, batch draft, queue and send worked in fixture mode |
 | Actual X authorization | live_verified | OAuth 2.0 with PKCE on 2026-11-15 |
 | Actual X discovery | live_verified | One rare-phrase search on 2026-11-15 |
 | Actual X send and received reply | live_verified | One DM to a controlled account, reply synced, 2026-11-15 |
@@ -97,7 +97,12 @@ Two problems found and fixed during the run:
 
 A fresh virtual environment installed the exact lock file from locally cached wheels, passed dependency checking, migrated a new dedicated PostgreSQL database, reran the migration idempotently, and served readiness/sign-in through the application. Elapsed time was 32.0 seconds.
 
-This trial excludes wheel downloads, Docker image acquisition, developer-account approval and account credentials. A cold Docker/evaluator setup must still be timed before promising their complete setup duration.
+On 2026-11-15 both README setup paths were repeated from a clean copy of the repository (fixture mode, no X or AI calls):
+
+- Docker: `docker compose up --build` built and started the app and database in about 75 seconds; migrations ran automatically; sign-in, a search, batch drafting, approve and queue, the automatic send (after ticking the history box) and reply sync all worked. Publishing the database port was removed from compose.yaml because it clashed with a local PostgreSQL.
+- Without Docker: a plain `pip install -r requirements.lock` into a new environment took 83 seconds; `alembic upgrade head` created all tables on an empty database; the app started, sign-in and a synthetic search worked.
+
+Neither trial includes creating an X developer app, its approval or buying credits; those depend on X.
 
 ## Remaining live acceptance steps
 

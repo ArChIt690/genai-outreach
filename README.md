@@ -1,207 +1,445 @@
-# GenAI Fund outreach prototype
+# GenAI Fund outreach on X
 
-A Python workbench for outreach on X to people building in AI and robotics. It finds people from recent public posts, has an AI model judge fit and draft a personal message from their own posts, puts every draft in a review queue for a person to approve, sends approved messages at a safe pace, and tracks replies.
+A tool for finding AI and robotics builders on X and starting warm, personal conversations with them from your own account.
 
-AI does the reading and writing. A person approves every message. Nothing is sent without that approval.
+- **AI does the reading and writing.** It finds people from a topic or from accounts you already rate, explains why each one fits using quotes from their own posts, and drafts a short personal DM.
+- **A person approves every message.** Nothing is sent until you approve the exact text.
+- **The app sends and tracks.** Approved messages go out at a safe pace, nobody is ever messaged twice, and replies show up under "Needs attention".
 
-Verified: the whole flow on synthetic X data (fixture mode), including real Google Gemini calls for fit judging and drafting. Not verified: anything against the real X API, because no X developer credentials were available. This is an assessment prototype, not a finished campaign platform.
+**Status:** verified end to end on real X and OpenAI on 15 Nov 2026: connect account, search, AI fit judging, AI draft, approve, automatic send, reply, sync. The test used two accounts controlled by the author. Not yet run on real X: sending to people outside the test list (the "operator-approved" rule below). Details are in [docs/VERIFICATION.md](docs/VERIFICATION.md).
 
-## Requirements
+---
 
-- Python 3.12 or compatible supported Python.
-- PostgreSQL 17, or Docker Desktop/Engine with Compose.
-- For live mode: an approved X developer app, OAuth client ID/secret, API credits and DM permissions, and a controlled/explicitly consenting recipient.
-- Optional: an OpenAI or Google Gemini API key for AI fit judging and drafting. Without one the app ranks by keywords and writes a template draft.
+## Contents
 
-## Start with Docker
+1. [What it does](#1-what-it-does)
+2. [What you need](#2-what-you-need)
+3. [Set up (about 10 minutes)](#3-set-up-about-10-minutes)
+4. [Try it on synthetic data first](#4-try-it-on-synthetic-data-first)
+5. [Connect your own X account and AI key](#5-connect-your-own-x-account-and-ai-key)
+6. [Send one safe test message](#6-send-one-safe-test-message)
+7. [Switch from testing to real outreach](#7-switch-from-testing-to-real-outreach)
+8. [Using it day to day](#8-using-it-day-to-day)
+9. [How it never double-messages](#9-how-it-never-double-messages)
+10. [Blocked actions and what to do](#10-blocked-actions-and-what-to-do)
+11. [Limitations](#11-limitations)
+12. [X rules this tool follows](#12-x-rules-this-tool-follows)
+13. [Costs](#13-costs)
+14. [How it works](#14-how-it-works)
+15. [All settings](#15-all-settings)
+16. [Tests](#16-tests)
+17. [Troubleshooting](#17-troubleshooting)
+18. [Documents](#18-documents)
 
-Run from this directory. Python is used once to generate local secrets and choose your password.
+---
 
-    python -m venv .venv
-    .venv\Scripts\python.exe -m pip install -r requirements.lock
-    .venv\Scripts\python.exe -m scripts.bootstrap --fixture-demo
-    docker compose up --build
+## 1. What it does
 
-On macOS/Linux use .venv/bin/python in place of .venv\Scripts\python.exe.
+How each part of the brief is covered:
 
-Open http://127.0.0.1:8000 and sign in with the password you chose. The app and database listen only on loopback through this development configuration. Do not expose this Compose file publicly. If port 5432 is occupied, change the DB port mapping; the container-to-container address is unchanged.
+| The brief asks for | How the tool does it | Where |
+|---|---|---|
+| Start from a target segment **or seed accounts** | Type topics, or enter 1 to 3 X handles you already rate. For seeds, the AI reads their recent posts and searches for people doing similar work. | Discover |
+| Find people and **explain why they fit** | One X search, a keyword score, then the AI judges the top 10: strong, possible or weak, with a reason and the quotes it rests on. Every quote is checked word for word against the person's posts. | Discover |
+| Draft **personalised** DMs from **real evidence** | "Draft for top matches" writes a short message per person that mentions something they actually posted. Drafts with made-up quotes, links, missing opt-out lines or over 500 characters are rejected. | Review |
+| Drafts **for us to review and approve** | Each draft is a card: reason, quotes, source posts, editable text. Approve, edit, rewrite with a note, skip, or mark do-not-contact. | Review |
+| Send from **our connected account** within X's rules and limits | Your own account via X's official OAuth. Approved messages go out one at a time, 2 minutes apart, at most 10 a day (both adjustable). | Activity |
+| **Never double-messages** anyone | One record per person, a check of past DMs before sending, no automatic retries, and a stored key per message so a crash or restart cannot resend. See [section 9](#9-how-it-never-double-messages). | Built in |
+| Show **what was sent, who replied, what needs attention** | Activity lists every message with its status, its place in the queue and replies. "Needs attention" shows new replies and problems. Replies are checked automatically or with "Sync all now". | Activity |
+| Usable **without the author** | This README, clear on-screen reasons for every hold or block, and a synthetic mode to practise in. | |
+| **Limitations and blocked actions clear** | Every blocked action shows its reason in plain words. See [section 10](#10-blocked-actions-and-what-to-do) and [section 11](#11-limitations). | |
 
-The bootstrap script refuses to overwrite an existing .env. To change your operator password while retaining credentials, run:
+![Review page: reason, quotes and the editable draft](docs/screenshots/review.png)
 
-    python -m scripts.bootstrap --reset-password
+![Discover page with AI fit](docs/screenshots/discover-ai.png)
 
-Restart the app after configuration changes. Never commit .env, a real database dump, private messages or credentials.
+---
 
-## Start against an existing PostgreSQL database
+## 2. What you need
 
-Create a dedicated empty database and use its connection URL:
+**To try it on synthetic data:** only Docker Desktop and Python 3.12. No accounts, no keys, no cost.
 
-    python -m scripts.bootstrap --fixture-demo --database-url "postgresql+psycopg://USER:PASSWORD@127.0.0.1:5432/outreach"
-    python -m alembic upgrade head
-    python -m uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --no-access-log
+**To use it on real X:**
 
-Keep the terminal's working directory at the project root. The commands assume the virtual environment is active or its Python executable is used explicitly. Access logs are disabled so OAuth callback codes do not enter request logs.
+| Need | Details |
+|---|---|
+| X developer account with credits | Pay-per-use credits on the X Developer Console. About USD 5 covers testing and a demo comfortably (see [Costs](#13-costs)). |
+| An X app with user sign-in | Set up in [section 5](#5-connect-your-own-x-account-and-ai-key). Permissions "Read and write and Direct message". |
+| The X account messages are sent from | You connect it inside the app. It stays yours; the app stores its token encrypted. |
+| For testing: a second X account you control | Real test messages may only go to accounts you control or people who agreed. |
+| An AI key (recommended) | OpenAI (default models `gpt-6-luna`, backup `gpt-6.1-terra`) or Google Gemini. Without one the app still works, with keyword ranking and a fill-in template instead of AI drafts. |
+| Software | Docker Desktop and Python 3.12. Or, without Docker: Python 3.12 and PostgreSQL 16 or newer (tested on 18). |
 
-## Fixture walkthrough
+**Nothing from the author's setup is included.** No password, keys, accounts or data are in this repository. You create your own as you go.
 
-Fixture mode uses only synthetic profiles, source posts and conversations. It makes no X calls. If DRAFT_PROVIDER=gemini is set, the synthetic posts are sent to Gemini for judging and drafting.
+---
 
-### Assisted flow: search, review, queue
+## 3. Set up (about 10 minutes)
 
-Set these in .env and restart (the AI lines are optional; use gemini and GEMINI_API_KEY for Gemini):
+### Option A: Docker (recommended)
 
-    OUTREACH_POLICY=operator_approved
-    DRAFT_PROVIDER=openai
-    OPENAI_API_KEY=your-key
+Tested on 15 Nov 2026: build and start took about 75 seconds.
 
-1. Sign in and search for robotics, embodied AI. Each person shows a fit (strong, possible or weak), a reason, and the quotes behind it.
-2. Select Draft for top matches. The app drafts a message for every strong or possible match, up to 10, and opens Review.
-3. On each Review card, read the reason, the quotes and the source posts. Edit the text if needed. Then choose Approve and queue, Skip, or Do not contact. Approving covers exactly the text on screen. If you do not like a draft, type an optional note such as "shorter" and select Rewrite: the stronger model writes a new draft from the same posts.
-4. Approved messages wait in the send queue. The app sends them one at a time, SEND_MIN_GAP_SECONDS apart, up to DAILY_SEND_LIMIT per day. Activity shows each message's place in the queue and the reason for any hold.
-5. Open a sent person's page, add a fixture reply, then select Sync all now in Activity. The conversation moves to Needs attention.
+1. **Get the code** (1 minute)
+   ```
+   git clone https://github.com/ArChIt690/genai-outreach
+   cd genai-outreach
+   ```
+2. **Install the setup helper** (2 to 3 minutes). Python is used once, to create your settings file and password.
+   ```
+   python -m venv .venv
+   .venv\Scripts\python.exe -m pip install -r requirements.lock
+   ```
+   `python` must be 3.12 or newer (on Windows, `py -3.12 -m venv .venv` picks it if several are installed). On macOS or Linux, use `.venv/bin/python` instead of `.venv\Scripts\python.exe` in every command.
+3. **Create your settings and choose your password** (1 minute)
+   ```
+   .venv\Scripts\python.exe -m scripts.bootstrap --fixture-demo
+   ```
+   It asks you to choose an operator password (at least 12 characters) and writes a `.env` file with a fresh encryption key. Your password is stored only as a hash. `.env` is ignored by git; never commit it.
+4. **Start** (2 to 5 minutes the first time)
+   ```
+   docker compose up --build
+   ```
+   This starts PostgreSQL and the app, and sets up the database.
+5. **Open** http://127.0.0.1:8000 and sign in with your password.
 
-### Start from seed accounts
+To stop: `Ctrl+C`, or `docker compose down`. To start again later: `docker compose up`.
 
-Instead of topics, enter one to three X handles you already rate under "Or start from accounts you already rate" and select Find similar people. The AI reads each seed's public bio and up to five recent posts, writes one sentence describing their work, and proposes search topics. The app runs its normal search with those topics, leaves the seeds out of the results, and judges each person by how similar their work is to the seeds. The results page shows the seeds, the AI's description and the topics used.
+If port 8000 is busy on your computer, change `"127.0.0.1:8000:8000"` in `compose.yaml` to another port, for example `"127.0.0.1:8080:8000"`, and set `APP_ORIGIN=http://127.0.0.1:8080` and `X_CALLBACK_URL=http://127.0.0.1:8080/oauth/x/callback` in `.env`.
 
-This needs an AI provider. It finds people who do similar work; it does not read who the seeds follow or talk to.
+### Option B: without Docker
 
-### Manual test-recipient flow
+Use this if you already run PostgreSQL. This is the path the author used during development and the live test.
 
-1. Sign in. Search for robotics and embodied AI.
-2. Open a candidate, prepare a message and draft from evidence. Inspect source text and approve the current version. Sending stays blocked without contact permission.
-3. In Settings, save your sender details and acknowledge the limited history window.
-4. Register handle test_recipient. Use a synthetic test-consent reference and check the controlled-account confirmation.
-5. Open that recipient, prepare a message, write a short test message and select the manually written test-message checkbox.
-6. Save, approve the exact version, and simulate the approved send.
-7. Add a fixture reply, then select Sync replies. Review Needs attention and mark the reply handled.
-8. A second initial send is blocked. Do not clear real history to repeat a live demonstration.
+1. Get the code and install, as in steps 1 and 2 above.
+2. Create an empty database:
+   ```
+   createdb -U <your postgres user> outreach
+   ```
+3. Create your settings and password, pointing at that database:
+   ```
+   .venv\Scripts\python.exe -m scripts.bootstrap --fixture-demo --database-url "postgresql+psycopg://USER:PASSWORD@127.0.0.1:5432/outreach"
+   ```
+4. Set up the tables and start:
+   ```
+   .venv\Scripts\python.exe -m alembic upgrade head
+   .venv\Scripts\python.exe -m uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --no-access-log
+   ```
+5. Open http://127.0.0.1:8000 and sign in.
 
-Fixture content and live data must use separate databases. The app refuses to start when APP_MODE disagrees with the database's stored mode.
+Keep `--no-access-log`: it stops X sign-in codes from being written to logs. Run exactly one app process; the send queue runs inside it.
 
-## Who can be messaged
+To change your password later: `.venv\Scripts\python.exe -m scripts.bootstrap --reset-password`, then restart.
 
-One setting, OUTREACH_POLICY, decides this. Settings and the top bar show which value is active.
+---
 
-| Value | Who can be messaged |
-| --- | --- |
-| test_allowlist (default) | Only accounts listed in TEST_RECIPIENT_IDS that have recorded test consent. Use this to test the tool. |
-| operator_approved | Any discovered person, once a person has approved the exact text. The allowlist and consent checks are skipped for evidence-based messages. |
+## 4. Try it on synthetic data first
 
-Under both values the app still enforces: human approval of the exact text, the do-not-contact list, one initial message per person, the pause switch, SEND_ENABLED, the daily limit, the X budget, and a fresh re-read of the quoted posts. A reply of STOP adds the person to the do-not-contact list.
+Setup starts in **fixture mode**: five made-up people, made-up posts, a pretend X. Nothing reaches X. Every page shows a yellow "Synthetic workspace" banner.
 
-Switch to operator_approved on real X only for outreach your organisation has decided to run from its own account. To test this tool, keep test_allowlist and message accounts you control or people who agreed to the test.
+To see the AI working, add an AI key first (one line in `.env`, see [section 5, step 3](#5-connect-your-own-x-account-and-ai-key)), then restart. Only the made-up posts are sent to the AI. Without a key, steps 1 to 3 still work with keyword ranking and template drafts.
 
-## AI fit judging and drafting
+To let the made-up people be "messaged", set this in `.env` and restart:
+```
+OUTREACH_POLICY=operator_approved
+```
 
-Choose one provider in .env:
+Then:
 
-- OpenAI: DRAFT_PROVIDER=openai and OPENAI_API_KEY. OPENAI_MODEL (default gpt-6-luna) does the judging and drafting. OPENAI_STRONG_MODEL (default gpt-6.1-terra) is tried when the first model is busy, and writes every Rewrite.
-- Gemini: DRAFT_PROVIDER=gemini and GEMINI_API_KEY. Defaults: GEMINI_MODEL=gemini-2.5-flash, GEMINI_FALLBACK_MODEL=gemini-flash-lite-latest. Gemini has no separate stronger model, so Rewrite uses the same one.
+1. **Settings:** under "Who is writing, and why?", fill in a sender name and purpose, tick "I understand that X history is limited to 30 days", and save. **The send queue waits until this box is ticked.**
+2. **Discover:** search `robotics, embodied AI`. Each person shows a fit, a reason and quotes. Try "Or start from accounts you already rate" with `@ada_robotics` too.
+3. Click **Draft for top matches**. You land on **Review**.
+4. On a card: read the reason and quotes, edit the text or type a note and click **Rewrite**, then **Approve and queue**.
+5. **Activity:** watch the status change to **sent** (within 30 seconds; later messages wait 2 minutes each).
+6. Open the person's page, type a reply under "Synthetic recipient reply", click **Add fixture reply**, then **Sync all now** in Activity. The row moves to **Needs attention**.
 
-The OpenAI adapter is tested against a mocked server only; it has not yet been run against the real API. The Gemini adapter has.
+Fixture and live data must use separate databases (the app refuses to start on a mix). Section 5 shows how to switch.
 
-- After each search, one model call judges the top 10 keyword matches. For each person it returns a fit, a role, a short reason and the quotes the reason rests on.
-- The app checks every quote word for word against that person's stored posts. If any quote is not found, that person's AI judgment is thrown away and the keyword score stands alone. There is no confidence percentage.
-- A draft must be at most 500 characters, cite quotes that pass the same check, and contain a STOP opt-out line. Otherwise the app uses the template draft and labels it as a fallback.
-- If the first model is busy or rate limited, the call is tried once on the fallback model. If that fails too, the app falls back to keyword ranking or the template and says so on screen.
-- Only public profile text, public posts, the sender name and the purpose are sent to the model. DMs and tokens never are. Posts are passed as data and the instructions tell the model to treat them as untrusted.
-- Settings has an AI usage section: every call with its model, tokens, time and result. AI_DAILY_CALL_LIMIT (default 200) caps calls per UTC day.
+---
 
-Google's free tier may use submitted content to improve its products. What this app submits is public posts plus your sender name and purpose. Use a paid key if that matters to you. For OpenAI, check the data controls of your own account.
+## 5. Connect your own X account and AI key
 
-## Settings for assisted outreach
+### Step 1: create the X app (about 10 minutes, on X's site)
+
+In the [X Developer Console](https://developer.x.com), open your app and:
+
+1. **Settings → User authentication settings → Set up** (or Edit):
+   | Field | Value |
+   |---|---|
+   | App permissions | **Read and write and Direct message** |
+   | Type of App | **Web App, Automated App or Bot** (confidential client) |
+   | Callback URI / Redirect URL | `http://127.0.0.1:8000/oauth/x/callback` |
+   | Website URL | any URL of yours |
+2. Save. Without "Direct message" permission the app can read but not send.
+3. **Keys and tokens → OAuth 2.0 Keys:** copy the **Client ID** and **Client Secret**. You don't need the Bearer Token, Consumer Key or Access Token.
+4. Make sure the app's project has credits (Billing → Credits).
+
+### Step 2: switch the app to live mode
+
+Live data needs its own empty database.
+
+- **Docker:** run `docker compose down -v` (this deletes the synthetic data), then continue.
+- **Without Docker:** create a second database, e.g. `createdb -U <user> outreach_live`, and point `DATABASE_URL` at it in step 3.
+
+### Step 3: edit `.env`
+
+Change these lines (edit the existing ones; don't add duplicates):
+
+```
+APP_MODE=live
+X_CLIENT_ID=your-client-id
+X_CLIENT_SECRET=your-client-secret
+DRAFT_PROVIDER=openai
+OPENAI_API_KEY=your-openai-key
+OUTREACH_POLICY=test_allowlist
+AUTO_SYNC_MINUTES=0
+```
+
+- For Gemini instead: `DRAFT_PROVIDER=gemini` and `GEMINI_API_KEY=...`.
+- Without Docker, also: `DATABASE_URL=postgresql+psycopg://USER:PASSWORD@127.0.0.1:5432/outreach_live`
+- `AUTO_SYNC_MINUTES=0` stops background reply checks (they cost money) while testing. You can use "Sync all now" instead.
+
+**Important (without Docker):** if `OPENAI_API_KEY` or `GEMINI_API_KEY` is also set in your operating system's environment variables, that value wins over `.env`. Remove it or make it match, then restart from a new terminal. (This caused the only failure in the author's live test.)
+
+Restart the app. The top bar should now say **Live mode**.
+
+### Step 4: connect and set up
+
+1. **Settings → Connect with X.** Sign in to X as the account messages should come **from**, and approve. Settings then shows that account as Authorized.
+2. **Settings → "Who is writing, and why?"**:
+   - **Sender name:** how messages should introduce you, e.g. "Archit from GenAI Fund".
+   - **Purpose:** one true line about why you are reaching out. The AI uses only this to explain who is writing and why; the personal part comes from each person's own posts.
+   - Tick the **30-day history** box, then save.
+
+Changing the sender name or purpose later cancels earlier approvals and test consent. That is deliberate.
+
+---
+
+## 6. Send one safe test message
+
+Do this once before any real outreach. It runs the whole real path while making it impossible to message anyone else. It costs about USD 0.10 to 0.20 of X and under one cent of AI.
+
+1. **Pick the test recipient:** a second X account you control. Have the two accounts follow each other.
+2. **Find its numeric X ID** (the number, not the @handle), with any X user-ID lookup tool. Put it in `.env` and restart:
+   ```
+   TEST_RECIPIENT_IDS=1234567890123456789
+   ```
+3. **Settings → Register a test recipient:** enter the handle, a short consent note such as "My own second account", tick "I control this recipient account", then **Record test consent**.
+4. **From the second account, post something with a rare phrase** and a first-person line, for example:
+   > I'm testing a tidewater gripper on low-cost robot arms this week.
+
+   "I'm testing" (or building, researching, developing) earns enough evidence for the app to draft.
+5. **Discover:** search the rare phrase, e.g. `tidewater gripper`. The second account should appear with an AI fit, reason and quote. A brand-new post can take 10 to 15 minutes to become searchable.
+6. **Draft for top matches → Review.** Read the draft. Edit or Rewrite if you like.
+7. **Approve and queue.** Within about 30 seconds Activity shows **sent**.
+8. **On the second account, open Chat → Requests.** The message is there (it lands in Requests if that account didn't follow the sender when it was sent). Reply to it.
+9. **Activity → Sync all now.** The row moves to **Needs attention**. The test is complete.
+
+---
+
+## 7. Switch from testing to real outreach
+
+Only do this once your organisation has decided to run this outreach from its own account, and after section 6 worked.
+
+1. In `.env`:
+   ```
+   OUTREACH_POLICY=operator_approved
+   ```
+2. Optionally adjust the pace:
+   ```
+   DAILY_SEND_LIMIT=10
+   SEND_MIN_GAP_SECONDS=120
+   AUTO_SYNC_MINUTES=180
+   ```
+   Reply checks cost about USD 0.01 per conversation per check; 180 minutes is about USD 1.12 per conversation over 14 days. 720 is a cheaper choice, 0 turns them off.
+3. Restart. The top bar and Settings now say **Operator-approved sending**.
+
+What changes: any person the app discovers can be messaged once you approve the exact text. The test list and recorded consent are no longer required for evidence-based messages.
+
+What stays enforced: a person approves every message; nobody gets a second first message; the do-not-contact list; STOP replies; the pause button; the daily limit, pacing and budget caps; a fresh re-read of the quoted posts before sending.
+
+To go back, set `OUTREACH_POLICY=test_allowlist` and restart. Queued messages to people not on the test list are taken out of the queue with a note; none are sent.
+
+---
+
+## 8. Using it day to day
+
+1. **Discover:** search by topics (one to five, comma separated), or start from one to three seed accounts. Results are ordered strong, possible, unjudged, weak. Each card shows the AI's reason, the quotes behind it and the keyword points.
+2. **Draft for top matches:** drafts for every strong or possible person, up to 10, skipping anyone already contacted, blocked or drafted. Nothing is sent.
+3. **Review**, for each card:
+   - **Approve and queue:** approves exactly the text in the box, including any edit you just made.
+   - **Save edit:** keeps your changes without approving.
+   - **Rewrite:** the stronger model writes a new draft from the same posts. Add a note such as "shorter" or "ask about the benchmark".
+   - **Skip:** hides the draft without blocking the person.
+   - **Do not contact:** blocks the person permanently.
+4. **Activity:** every message, its status, its place in the queue, any hold reason and replies. **Needs attention** shows new replies, refused messages and anything uncertain. **Sync all now** checks replies immediately.
+5. **Person page:** the evidence, the full conversation, send history, and a manual "Mark replies handled".
+6. **Settings:** pause or resume sending, the active send rule and limits, X spend estimate, the **AI usage** panel (every AI call with model, tokens, time and result), and a purge of stored post and reply text.
+
+A reply of "STOP" adds the person to the do-not-contact list automatically.
+
+---
+
+## 9. How it never double-messages
+
+- **One record per person.** The database allows only one outreach record per sender and recipient.
+- **Past DMs are checked before sending.** If X shows any earlier message from you to that person, the send is blocked.
+- **No automatic retries.** If X's answer is unclear, the message is marked "unknown", the sender is held, and the queue stops until a person checks it ("Check uncertain outcome" on the person's page).
+- **A stored key per message.** It is saved when you approve, before anything is sent. After a crash or restart, the app finds the stored result instead of sending again.
+- **Database locks.** Two sends of the same message at the same moment cannot both go through.
+
+---
+
+## 10. Blocked actions and what to do
+
+Every block shows its reason on screen. The ones you are most likely to meet:
+
+| You see | Why | What to do |
+|---|---|---|
+| Queue **holding: history acknowledgement required** | The 30-day history box isn't ticked | Settings → tick it → Save |
+| Queue **holding: pacing** | Less than `SEND_MIN_GAP_SECONDS` since the last send | Wait; it continues by itself |
+| Queue **holding: daily limit** | `DAILY_SEND_LIMIT` reached (UTC day) | Wait for the next UTC day, or raise the limit |
+| Queue **holding: rate limited** | X asked to slow down | Wait; the app retries after X's time (or 15 minutes) and keeps your approval |
+| Queue **holding: sending paused / sending disabled** | Pause button, or `SEND_ENABLED=false` | Settings → Resume, or set `SEND_ENABLED=true` and restart |
+| Queue **holding: sender busy** | A previous send has an unknown outcome | Open that person → Check uncertain outcome, or Freeze this contact |
+| **recipient not allowed** | Test-list rule is on and the person isn't on `TEST_RECIPIENT_IDS` | Expected while testing; see section 7 |
+| **consent required** | Test-list rule: no valid consent (or the purpose changed) | Settings → Register a test recipient again |
+| **do not contact** | You blocked them, or they replied STOP | None; this is permanent |
+| **already contacted** | You messaged them before (here or directly on X) | None; continue in X |
+| **approval stale** | The text changed in another tab | Refresh and approve again |
+| **budget exceeded** | `X_BUDGET_USD` reached by the app's own estimate | Check X billing, then raise the cap |
+| Message **rejected: X permission or recipient restricted** | The person only accepts DMs from people they follow, or the app lacks DM permission | Nothing to fix for that person; check app permissions if it happens to everyone |
+| "**AI fit judging was unavailable**" / draft labelled **fallback** | The AI call failed, or its answer failed the checks | Settings → AI usage shows the error code. The app continues with keyword ranking or the template |
+
+---
+
+## 11. Limitations
+
+- **Cold DMs usually land in Requests**, where many people don't look. People who accept DMs only from accounts they follow cannot be reached; X refuses and the app marks it rejected. The app does not follow anyone to get around this.
+- **Search covers X's last seven days** only. Seed accounts must have posted in that window.
+- **DM history covers 30 days**, so the duplicate check cannot see older messages sent outside this app.
+- **Seed accounts find similar people,** not the seed's followers or contacts.
+- **The AI judges only the top 10** keyword matches per search.
+- **Quote checks prove the quotes are real,** not that the AI's summary is fair. You still read each draft.
+- **One operator and one sending account.** Run one app process.
+- **The daily limit and gap are our caution,** not verified X quotas.
+- **Not yet run on real X:** operator-approved sending to people outside the test list, and the Rewrite model (`gpt-6.1-terra`) against the real API.
+
+Full list: [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md).
+
+---
+
+## 12. X rules this tool follows
+
+- Official X API only: no scraping, no browser automation, no bypassing restrictions.
+- A person approves every message. No message is sent automatically without approval.
+- One message at a time, with a minimum gap and a daily cap. X's rate limits and reset times are respected.
+- No automatic follows, likes, retries or follow-up messages.
+- Every message ends with an opt-out line; a STOP reply blocks further contact automatically.
+- Only public profile text and public posts go to the AI. Private DMs and tokens never do.
+- Tokens are stored encrypted; secrets live only in `.env`, which git ignores.
+
+---
+
+## 13. Costs
+
+**Paid tools:** the X API (pay per use) and the OpenAI API (or Gemini). No hosting is needed; it runs on your computer.
+
+| Action | Expected cost |
+|---|---|
+| One search (up to 50 posts, 20 people) | about USD 0.45 at most; a narrow search costs cents |
+| One seed account | about USD 0.06, plus the search |
+| One approved message (re-read posts, check past DMs, send) | about USD 0.05 |
+| Reply checks | about USD 0.01 per conversation per check |
+| AI: one search judged plus ten drafts (gpt-6-luna) | about USD 0.001 to 0.01 |
+| AI: one Rewrite (gpt-6.1-terra) | about USD 0.001 to 0.01 |
+| **The author's full live test** | **about USD 0.18 of X, under 1 cent of AI** |
+
+Example day at the defaults: one search and ten messages cost about USD 1 of X, plus up to about USD 11 of reply checks spread over the next 14 days (set `AUTO_SYNC_MINUTES` higher or to 0 to cut this).
+
+Caps you control: `X_BUDGET_USD` (default 5; the app stops X calls when its estimate reaches it), `AI_DAILY_CALL_LIMIT` (default 200 AI calls a day), `DAILY_SEND_LIMIT`. Prices are from X's and OpenAI's pages in November 2026; check current prices before running. Details: [docs/COSTS.md](docs/COSTS.md).
+
+---
+
+## 14. How it works
+
+One Python web app (FastAPI) and one PostgreSQL database. All AI calls go through one module that tries a backup model when the first is busy, caps daily calls and logs every call. A background thread inside the app sends approved messages at the set pace and checks for replies. The existing send function re-checks every rule immediately before each send.
+
+Diagrams of the components, the full flow, the sending sequence and the data model: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+---
+
+## 15. All settings
+
+Set in `.env`; restart the app after any change.
 
 | Setting | Default | Meaning |
-| --- | --- | --- |
-| OUTREACH_POLICY | test_allowlist | Who can be messaged. See above. |
-| DRAFT_PROVIDER | template | template, openai, gemini or anthropic. |
-| OPENAI_API_KEY | empty | Needed for openai. Keep it in .env only. |
-| OPENAI_MODEL / OPENAI_STRONG_MODEL | gpt-6-luna / gpt-6.1-terra | Everyday model; backup and Rewrite model. |
-| GEMINI_API_KEY | empty | Needed for gemini. Keep it in .env only. |
-| GEMINI_MODEL / GEMINI_FALLBACK_MODEL | gemini-2.5-flash / gemini-flash-lite-latest | First model and the one tried when the first is busy. |
-| AI_DAILY_CALL_LIMIT | 200 | Model calls per UTC day. |
-| DRAFT_LIMIT_PER_SESSION | 40 | Drafts per sign-in. |
-| DAILY_SEND_LIMIT | 10 | Send attempts per UTC day. This is our caution, not an X quota. |
-| SEND_MIN_GAP_SECONDS | 120 | Minimum gap between queued sends. |
-| QUEUE_TICK_SECONDS | 30 | How often the background worker wakes. |
-| AUTO_SYNC_MINUTES | 180 | Minutes between automatic reply checks, for 14 days after a send. 0 turns it off. See docs/COSTS.md before lowering it. |
-| WORKER_ENABLED | true | Set false to stop automatic sending and reply checks. |
+|---|---|---|
+| `APP_MODE` | fixture | `fixture` (synthetic) or `live` (real X). Each needs its own database. |
+| `DATABASE_URL` | local | PostgreSQL connection. Docker sets this for you. |
+| `APP_ORIGIN` / `X_CALLBACK_URL` | 127.0.0.1:8000 | Must match the address in your browser and in the X app. |
+| `X_CLIENT_ID` / `X_CLIENT_SECRET` | empty | From your X app's OAuth 2.0 keys. |
+| `SEND_ENABLED` | false (setup with `--fixture-demo` sets true) | Master switch for sending. |
+| `OUTREACH_POLICY` | test_allowlist | Who can be messaged; see section 7. |
+| `TEST_RECIPIENT_IDS` | empty | Numeric X IDs allowed under the test-list rule, comma separated. |
+| `DRAFT_PROVIDER` | template | `openai`, `gemini`, `anthropic` (untested) or `template` (no AI). |
+| `OPENAI_API_KEY` | empty | Your OpenAI key. |
+| `OPENAI_MODEL` / `OPENAI_STRONG_MODEL` | gpt-6-luna / gpt-6.1-terra | Everyday model; backup and Rewrite model. |
+| `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL` | empty, gemini-2.5-flash, gemini-flash-lite-latest | For Gemini. |
+| `AI_DAILY_CALL_LIMIT` | 200 | AI calls per UTC day. |
+| `DRAFT_LIMIT_PER_SESSION` | 40 | Drafts per sign-in. |
+| `DAILY_SEND_LIMIT` | 10 | Send attempts per UTC day. |
+| `SEND_MIN_GAP_SECONDS` | 120 | Minimum time between queued sends. |
+| `QUEUE_TICK_SECONDS` | 30 | How often the background worker wakes. |
+| `AUTO_SYNC_MINUTES` | 180 | Minutes between automatic reply checks, for 14 days after a send. 0 = off. |
+| `WORKER_ENABLED` | true | Set false to stop automatic sending and reply checks. |
+| `X_BUDGET_USD` | 5 | Cap on the app's estimate of X spend. |
+| `HISTORY_LIMIT_ACKNOWLEDGED` | false | Same as ticking the 30-day history box in Settings. |
 
-Run exactly one app process. The send queue and reply checks run inside it and stop when it stops; they continue from the database when it starts again.
+Sender name, purpose, the history tick, the connected account and test consent are set in the app's Settings page and stored in the database.
 
-## Connect a real X account
+---
 
-Provision a new, separate database for live mode. Edit your local .env:
+## 16. Tests
 
-    APP_MODE=live
-    DATABASE_URL=postgresql+psycopg://USER:PASSWORD@127.0.0.1:5432/outreach_live
-    APP_ORIGIN=http://127.0.0.1:8000
-    X_CALLBACK_URL=http://127.0.0.1:8000/oauth/x/callback
-    X_CLIENT_ID=your-client-id
-    X_CLIENT_SECRET=your-confidential-client-secret
-    TEST_RECIPIENT_IDS=the-consenting-recipient-numeric-x-id
-    SEND_ENABLED=false
+251 automated tests, including real-database concurrency tests and two browser tests. They use synthetic data and fake AI and X servers; they never call real services and strip real keys from their environment.
 
-Keep your generated encryption key and password hash. Register the exact callback URI in the X developer console, enable user authentication, and grant tweet.read, users.read, dm.read, dm.write and offline.access. Run migrations, restart, and use Connect with X in Settings.
+```
+$env:TEST_DATABASE_URL="postgresql+psycopg://USER:PASSWORD@127.0.0.1:5432/outreach_test"
+.venv\Scripts\python.exe -m pytest -q
+.venv\Scripts\python.exe -m ruff check .
+```
 
-First verify identity, real discovery and a tracked conversation read. Record the outcome in docs/VERIFICATION.md. Account access does not prove recipient compatibility: encryption, entitlement or recipient settings may block the standard DM endpoint.
+The test database name must start with `outreach_test`; its tables are emptied on every run. Browser tests use Microsoft Edge on Windows, or set `BROWSER_EXECUTABLE`; skip them with `-m "not browser"`.
 
-To perform a single live test, record explicit test consent for the allowlisted recipient, acknowledge history limits, set SEND_ENABLED=true locally and restart. The human operator must inspect and approve the exact message, then press Send approved message. No setup script or automated test sends it for you.
+---
 
-An incoming consent message before the initial send does not count as a reply. Available history is checked for outgoing prior contact, but the API's thirty-day window cannot prove absence of older messages. Use a previously uncontacted controlled test pair. Ordinary conversation continuation happens in X, not through automated follow-ups here.
+## 17. Troubleshooting
 
-## Template and Anthropic drafting
+| Problem | Fix |
+|---|---|
+| No "Connect with X" button | `APP_MODE` is still `fixture`. Set `live` (with a live database) and restart. |
+| `MODE_MISMATCH` on start | The database was used in the other mode. Use a separate database (Docker: `docker compose down -v`). |
+| AI calls fail with `HTTP_401` | The AI provider refused the key. A key set in your operating system's environment overrides `.env`; remove it or make it match, and restart from a new terminal. |
+| Sent DM not visible to the recipient | X shows DMs under Chat. Messages from accounts the recipient doesn't follow arrive under Requests. |
+| New post not found by search | X can take 10 to 15 minutes to make a new post searchable. |
+| "Insufficient professional evidence" when drafting | The person's posts score below 4. Posts with "I'm building / testing / researching" score higher. |
+| Port 8000 busy | See the note at the end of section 3, Option A. |
+| Connection refused / missing tables | Start PostgreSQL; check `DATABASE_URL`; run `python -m alembic upgrade head`. |
+| `SEND_UNKNOWN` | Open the person → Check uncertain outcome. No match does not allow resending. |
+| `HISTORY_INCOMPLETE` | X didn't return full DM history (permissions, rate limit). The queue retries later. |
 
-The default DRAFT_PROVIDER=template attributes a selected public post directly and incorporates your supplied purpose. It is labeled as a template.
+---
 
-The optional Anthropic Messages adapter is implemented but has not been verified against a real model account. To enable it in live mode, set DRAFT_PROVIDER=anthropic, ANTHROPIC_API_KEY, ANTHROPIC_MODEL and MODEL_DATA_USE_ACKNOWLEDGED=true only after reviewing X/provider processing terms and your provider's retention settings. Private DM content and OAuth tokens never enter the model request.
+## 18. Documents
 
-Model schema/source validation cannot establish semantic truth. Review every claim. Invalid/unavailable model output falls back visibly to the evidence template. A conservative USD 0.10 allowance is reserved per model call; configure provider spending controls and verify that the selected model/request size fits that reservation.
-
-## Tests
-
-Use a disposable PostgreSQL database whose name starts with outreach_test. Tests truncate only that explicitly selected test database. Never point tests at a live workspace.
-
-PowerShell:
-
-    $env:TEST_DATABASE_URL="postgresql+psycopg://USER:PASSWORD@127.0.0.1:5432/outreach_test"
-    python -m pytest -q
-    python -m ruff check .
-    python -m pip check
-
-Browser tests use installed Microsoft Edge on Windows. Else install Playwright Chromium with python -m playwright install chromium, or set BROWSER_EXECUTABLE to an existing compatible browser. For service tests alone, run python -m pytest -m "not browser" -q.
-
-The suite also covers the send rule in both policies, the Gemini adapter against a mocked server (including the busy-model fallback), rejection of invented quotes in judging and drafting, queue pacing, the daily limit, restart safety, stop-on-unknown, automatic reply checks, and a second browser test of the assisted flow. It covers database concurrency, approval invalidation, consent, request replay, accepted-then-timeout, uncertain reconciliation, pagination/partial sync, opt-outs, OAuth state, refresh rotation, CSRF and the complete synthetic browser workflow. Screenshots are saved under docs/screenshots.
-
-## Maintenance
-
-    python -m scripts.maintenance refresh
-    python -m scripts.maintenance expire --days 30
-
-Refresh selected sources regularly and promptly handle deletion/privacy requests. Settings provides a local content purge and token disconnect. Neither action deletes messages from X. Minimal identity/contact metadata is retained for duplicate prevention. See docs/KNOWN_LIMITATIONS.md for full removal.
-
-## Troubleshooting
-
-| Symptom | Action |
-| --- | --- |
-| Connection refused | Start PostgreSQL; check DATABASE_URL and port. |
-| Missing tables | Run python -m alembic upgrade head. |
-| MODE_MISMATCH | Choose a separate database for the requested mode. |
-| SENDING_DISABLED | Intentionally enable only controlled tests in deployment configuration and restart. |
-| CONSENT_REQUIRED | Record valid consent for this sender, recipient and current purpose. |
-| AI calls fail with HTTP_401 | The provider refused the key. An OPENAI_API_KEY or GEMINI_API_KEY set in the operating system environment overrides .env; remove it or make it match, then restart the app from a new terminal. |
-| Sent DM not visible to the recipient | X shows DMs under Chat. Messages from accounts the recipient does not follow arrive under Requests. |
-| RECIPIENT_NOT_ALLOWED | Under test_allowlist only registered test recipients can be messaged. See Who can be messaged. |
-| Queue shows Holding | The note names the reason: pacing and daily limit clear by themselves; sending disabled, paused, sender busy or account reconnect need action in Settings or Activity. |
-| AI fit judging was unavailable | Both Gemini models failed or the daily call limit was reached. Results use keyword ranking. Check Settings, AI usage. |
-| Draft labelled as a fallback | The model failed, cited a quote that is not in the posts, wrote over 500 characters or left out the STOP line. The template was used instead. |
-| APPROVAL_STALE | Save the current text, inspect the evidence and approve again. |
-| ALREADY_CONTACTED | Use existing activity; do not erase the ledger to send again. |
-| SEND_UNKNOWN | Inspect/reconcile. No-match does not authorize resending. |
-| HISTORY_INCOMPLETE | Resolve API permission/rate/pagination issues before sending. |
-| X_PERMISSION_OR_RECIPIENT_RESTRICTED | Check DM permissions, recipient settings, account/encryption requirements. |
-| BUDGET_EXCEEDED | Review local estimates and provider billing before changing the allowance. |
-| Dependency downloads stall on wheel metadata | This host required pip's legacy resolver; using --use-deprecated=legacy-resolver completed installation. Pinned offline-wheel installation was also tested. |
-
-See docs/ARCHITECTURE.md, docs/VERIFICATION.md and docs/DEMO_SCRIPT.md before recording a submission. The current delivery contains a demo script and synthetic screenshots, not a fabricated live demo video.
+| Document | What's in it |
+|---|---|
+| [docs/SUBMISSION_WRITEUP.md](docs/SUBMISSION_WRITEUP.md) | One-page write-up: approach, trade-offs, next steps, costs, AI tool use |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design with diagrams |
+| [docs/VERIFICATION.md](docs/VERIFICATION.md) | What was tested, including the live test |
+| [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) | Every known limit |
+| [docs/COSTS.md](docs/COSTS.md) | Prices and cost estimates |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Design choices and why |
+| [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) | Status of each part |
+| [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | Demo outline |

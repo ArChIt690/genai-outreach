@@ -19,7 +19,7 @@ Last updated 2026-11-15. Statuses: verified on synthetic data (fixture), verifie
 | Reply checks, STOP handling | Fixture verified | Service and browser tests |
 | AI usage panel | Verified with real Gemini | Shows the real calls from the run |
 | Packaging | Verified | Refuses a template that holds a secret; leaves out .env and working notes |
-| Docker setup | Not run | Docker was not running on the development machine |
+| Docker setup | Fixture verified | Clean-copy build and start in about 75 s on 2026-11-15; full fixture flow worked |
 | Live X authorization, search, send, reply | Verified once | Sender and recipient both controlled by the candidate; about USD 0.18 of X |
 | Operator-approved sending on real X | Not run | The live test kept the test-list-only rule |
 | Demo recording | Not done | To be recorded by the candidate |

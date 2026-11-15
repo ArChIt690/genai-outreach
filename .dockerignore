@@ -7,3 +7,13 @@ __pycache__
 .ruff_cache
 docs/screenshots
 test-results
+.env.*
+!.env.example
+.superpowers
+.claude
+docs/superpowers
+PROJECT_GUIDE.md
+*.pdf
+*.mp4
+*.mov
+*.zip
