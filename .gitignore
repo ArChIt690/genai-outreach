@@ -9,3 +9,6 @@ playwright-report/
 *.log
 *.db
 runtime/
+
+# The assignment brief stays local; it is not part of the submission.
+GenAI Fund*.pdf
