@@ -2,7 +2,7 @@
 
 ## Live verification pending
 
-No X OAuth credentials were configured in this workspace. No real X discovery, DM exchange or outreach campaign was performed. The implemented live adapters have contract tests; actual entitlements, encryption/account compatibility, and provider behavior remain unverified. Google Gemini was called for real, but only on synthetic fixture posts.
+One controlled live test ran on 2026-11-15: real X sign-in, search, one DM to a second account controlled by the candidate, and a synced reply, with OpenAI gpt-6-luna judging and drafting. No outreach to anyone else has been performed, and operator-approved sending has not run on real X. Google Gemini was called for real on synthetic posts only.
 
 Docker Engine was not running on this machine. Native Windows Python/PostgreSQL execution and browser testing are verified. Docker files are provided; a full container build/start still needs verification.
 
@@ -11,6 +11,9 @@ Docker Engine was not running on this machine. Native Windows Python/PostgreSQL 
 Only one operator and one active sender are supported. No message is sent without a person approving its exact text. There are no automated follow-ups, attachments or encrypted Chat subsystem. Manually added test recipients are labeled honestly.
 
 ## Assisted outreach limits
+
+- Where a message lands is up to the recipient. In the live test the DM arrived in the recipient's message requests, because they did not follow the sender. Recipients who accept messages only from people they follow cannot be reached: X refuses, and the app marks the message rejected. The app does not follow anyone to get around this, and should not.
+- X now shows direct messages under Chat. Messages sent through the API appeared there, under Requests.
 
 - Under OUTREACH_POLICY=operator_approved the allowlist and consent checks are skipped, so the person approving is the only judge of who is contacted. This policy has never run against real X.
 - The app proves that each AI quote appears in the person's posts. It cannot prove that the AI's one-line reason, or the draft's wording, describes those posts fairly. The reviewer must read them.

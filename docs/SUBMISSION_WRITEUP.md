@@ -9,11 +9,11 @@
 - Simple over scalable. One Python process and one PostgreSQL database; no message broker or vector database. At ten messages a day this is the smallest design that can be trusted.
 - Safe by default. Out of the box only registered test accounts can be messaged. One setting, OUTREACH_POLICY, opens sending to approved people.
 
-**Verified and not.** 230 automated tests pass, including real-database concurrency tests and two browser workflows. The whole flow ran on synthetic X data with real Gemini calls. The X integration and the OpenAI provider are written and tested against mocked servers, but had not been run against the real services when this was written; VERIFICATION.md records the current state.
+**Verified and not.** 251 automated tests pass, including real-database concurrency tests and two browser workflows. One controlled live run on real X and OpenAI covered the whole path: connect the account, search, AI judging and drafting with gpt-6-luna, approve, automatic send, reply and sync, for about USD 0.18. The recipient was a second account I control, under the test-list-only rule. Not yet run for real: sending under operator-approved mode, and the stronger model used for rewrites. VERIFICATION.md has the details.
 
 **Costs.** At X list prices a search is about USD 0.45 and a message about USD 0.05. Automatic reply checks are the largest recurring cost, about USD 1.12 per conversation over 14 days at the default interval, and can be slowed or turned off. AI cost is negligible: a search plus ten drafts is roughly 6,000 tokens, about USD 0.001 on gpt-6-luna. Local budget caps stop spending when reached. No paid hosting is needed. Details are in COSTS.md.
 
-**Limits.** Search covers X's seven-day window. DM history covers thirty days. Seed accounts find similar people, not a seed's contacts. One operator and one sender. The daily limit is our caution, not a verified X quota.
+**Limits.** A cold DM usually lands in the recipient's message requests, and is refused if they accept messages only from people they follow. Search covers X's seven-day window. DM history covers thirty days. Seed accounts find similar people, not a seed's contacts. One operator and one sender. The daily limit is our caution, not a verified X quota.
 
 **Next steps.** A controlled live test on X with a consenting recipient; a first real OpenAI run; a cold setup trial on a reviewer's machine including Docker; then follow-up reminders and a seed option that reads who a seed interacts with.
 

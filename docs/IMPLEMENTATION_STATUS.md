@@ -1,17 +1,17 @@
 # Implementation status
 
-Last updated 2026-11-14. Statuses: verified on synthetic data (fixture), verified with a real model, or not yet run for real.
+Last updated 2026-11-15. Statuses: verified on synthetic data (fixture), verified with a real model, or not yet run for real.
 
 | Part | Status | Evidence |
 | --- | --- | --- |
 | App, database schema, three migrations | Fixture verified | Fresh-database Alembic run; repeat-run tests |
 | Sign-in, sessions, CSRF | Fixture verified | HTTP and browser tests |
-| X adapters: OAuth, search, profile, DM read and send | Written; not run against real X | Mocked contract tests only; no developer credentials were available |
+| X adapters: OAuth, search, profile, DM read and send | Verified on real X | One controlled live test on 2026-11-15: connect, search, send, reply sync |
 | Topic search and keyword scoring | Fixture verified | Service tests on synthetic posts |
 | Seed accounts (similar people) | Fixture verified | Mocked model; unsafe-topic, unknown-seed and empty-seed tests |
 | AI fit judging with quote checks | Verified with real Gemini on synthetic posts | Real run on 2026-11-14; invented-quote tests |
 | AI drafting, batch drafting | Verified with real Gemini on synthetic posts | Real run on 2026-11-14; fallback tests |
-| OpenAI provider and Rewrite | Written; not run against the real API | Mocked server tests: success, fallback, cut-off answer, refusal, wrong key |
+| OpenAI provider | Verified with real gpt-6-luna | Fit judging and a draft in the live test; Rewrite (gpt-6.1-terra) mocked only |
 | Anthropic provider | Written; not run | Mocked failure tests |
 | Send rule (OUTREACH_POLICY) | Fixture verified | Both policies tested |
 | Review page, send queue, background worker | Fixture verified | Service, HTTP and browser tests; real worker thread in the Gemini run |
@@ -20,9 +20,10 @@ Last updated 2026-11-14. Statuses: verified on synthetic data (fixture), verifie
 | AI usage panel | Verified with real Gemini | Shows the real calls from the run |
 | Packaging | Verified | Refuses a template that holds a secret; leaves out .env and working notes |
 | Docker setup | Not run | Docker was not running on the development machine |
-| Live X authorization, search, send, reply | Not run | Needs a developer app, credits and a controlled recipient |
+| Live X authorization, search, send, reply | Verified once | Sender and recipient both controlled by the candidate; about USD 0.18 of X |
+| Operator-approved sending on real X | Not run | The live test kept the test-list-only rule |
 | Demo recording | Not done | To be recorded by the candidate |
 
-230 automated tests pass, including two browser workflows. Lint and dependency checks pass.
+251 automated tests pass, including two browser workflows. Lint and dependency checks pass.
 
-No real X request, real message, or OpenAI call has been made. The only external service called was Google Gemini, on synthetic posts.
+Real services used: Google Gemini on synthetic posts (2026-11-14); X and OpenAI gpt-6-luna in one controlled live test (2026-11-15).

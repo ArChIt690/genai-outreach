@@ -35,6 +35,29 @@ One run in fixture mode with a real Gemini key, OUTREACH_POLICY=operator_approve
 
 Screenshots from this run: screenshots/review-gemini.png and screenshots/ai-usage-gemini.png.
 
+## Live test on real X and OpenAI (2026-11-15)
+
+One controlled end-to-end run in live mode. The sender was the candidate's own X account; the only recipient was a second X account the candidate also controls, registered as a test recipient with recorded consent. OUTREACH_POLICY was test_allowlist, so no other account could have been messaged. AUTO_SYNC_MINUTES was 0.
+
+| Step | Result |
+| --- | --- |
+| Connect the sender with OAuth 2.0 (PKCE) | Worked; the account showed as authorized |
+| Profile lookup of the recipient | Worked |
+| Register test consent | Worked; registered again after the sender name and purpose changed, as designed |
+| Topic search on a rare phrase posted by the recipient | Worked; one post and one person returned, scored 6/10 |
+| AI fit judging with OpenAI gpt-6-luna | Worked after a key fix (below): strong / builder, reason and a word-for-word quote. 442 tokens in, 108 out, 4.8 s |
+| AI draft with gpt-6-luna | Worked; named the post, the sender and the purpose, ended with the STOP line |
+| Approve and queue | The background worker sent the DM 20 seconds after approval; X returned a message ID |
+| Delivery | The DM arrived in the recipient's message requests (the accounts did not follow each other at send time) |
+| Reply and sync | The recipient replied; a sync stored both messages and the conversation moved to Needs attention |
+
+Spend: about USD 0.18 of X by the app's estimate (including two repeated searches while fixing the key) and well under one cent of OpenAI.
+
+Two problems found and fixed during the run:
+
+- The first two OpenAI calls returned HTTP 401. An older OPENAI_API_KEY in the Windows user environment was overriding the one in .env (environment variables take precedence). Removing the Windows variable and restarting fixed it. The app handled the failure as designed: it logged the code and fell back to keyword ranking.
+- The DM was first missed because X now shows direct messages under Chat, and messages from accounts the recipient does not follow land in Requests.
+
 ## Capability status
 
 | Capability | Status | Qualification |
@@ -48,7 +71,7 @@ Screenshots from this run: screenshots/review-gemini.png and screenshots/ai-usag
 | Personalized template drafting | fixture_verified | Evidence-attributed draft visible in browser |
 | Optional Anthropic adapter | implemented | Mocked failure/source checks; no live model account |
 | Gemini adapter, fallback model, call log | model_verified | Real Gemini calls on synthetic posts; mocked failure paths |
-| OpenAI adapter and Rewrite | implemented | Mocked server only: success, busy-model fallback, cut-off answer, refusal, wrong key. No real call yet |
+| OpenAI adapter and Rewrite | live_verified (luna) | Real fit judging and drafting with gpt-6-luna; Rewrite with gpt-6.1-terra mocked only |
 | Seed accounts (similar people) | fixture_verified | Mocked model and synthetic X; unsafe topics, unknown and empty seeds tested. No real X or model call |
 | AI fit judging with quote checks | model_verified | Real Gemini on synthetic posts; invented-quote tests |
 | AI drafting and batch drafting | model_verified | Real Gemini on synthetic posts; fallback tests |
@@ -64,9 +87,10 @@ Screenshots from this run: screenshots/review-gemini.png and screenshots/ai-usag
 | Fresh locked dependency setup | fixture_verified | Isolated new virtual environment and database |
 | Compose configuration | implemented | CLI configuration validation passed with no secret resolution |
 | Docker image build and containers | not_run | Docker Engine was not running |
-| Actual X authorization | blocked | Credentials not provided in this workspace |
-| Actual X discovery | blocked | Requires connected live account |
-| Actual X send and received reply | blocked | Requires human-operated controlled live test |
+| Actual X authorization | live_verified | OAuth 2.0 with PKCE on 2026-11-15 |
+| Actual X discovery | live_verified | One rare-phrase search on 2026-11-15 |
+| Actual X send and received reply | live_verified | One DM to a controlled account, reply synced, 2026-11-15 |
+| OpenAI fit judging and drafting | live_verified | gpt-6-luna on 2026-11-15. gpt-6.1-terra (backup and Rewrite) not exercised |
 | Final recorded demonstration | not_run | Candidate must record actual behavior |
 
 ## Clean setup trial
@@ -88,4 +112,4 @@ This trial excludes wheel downloads, Docker image acquisition, developer-account
 9. Record the required demonstration without clearing the sender-recipient ledger.
 10. Only after the steps above, decide whether to set OUTREACH_POLICY=operator_approved, and check the queue's pace and daily limit against the account's real DM limits.
 
-Until those steps succeed, this is implemented and fixture-verified software with pending live acceptance, not a fully verified completion of the assignment.
+Steps 1 to 8 were completed once on 2026-11-15 (see Live test above). Step 10 remains: the send rule stayed test_allowlist, and the queue's pace and daily limit have not been checked against the account's real DM limits.

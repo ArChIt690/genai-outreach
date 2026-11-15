@@ -190,6 +190,8 @@ Refresh selected sources regularly and promptly handle deletion/privacy requests
 | MODE_MISMATCH | Choose a separate database for the requested mode. |
 | SENDING_DISABLED | Intentionally enable only controlled tests in deployment configuration and restart. |
 | CONSENT_REQUIRED | Record valid consent for this sender, recipient and current purpose. |
+| AI calls fail with HTTP_401 | The provider refused the key. An OPENAI_API_KEY or GEMINI_API_KEY set in the operating system environment overrides .env; remove it or make it match, then restart the app from a new terminal. |
+| Sent DM not visible to the recipient | X shows DMs under Chat. Messages from accounts the recipient does not follow arrive under Requests. |
 | RECIPIENT_NOT_ALLOWED | Under test_allowlist only registered test recipients can be messaged. See Who can be messaged. |
 | Queue shows Holding | The note names the reason: pacing and daily limit clear by themselves; sending disabled, paused, sender busy or account reconnect need action in Settings or Activity. |
 | AI fit judging was unavailable | Both Gemini models failed or the daily call limit was reached. Results use keyword ranking. Check Settings, AI usage. |
